@@ -1,0 +1,29 @@
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Environment
+.env
+
+# SQLite (legacy local development)
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Uploads & ML artifacts
+uploads/*
+!uploads/.gitkeep
+*.pt
+runs/
