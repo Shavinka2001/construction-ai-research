@@ -1,10 +1,5 @@
-import { DashboardSectionPlaceholder } from "@/components/dashboard/DashboardSectionPlaceholder";
+import { FeasibilityAnalyzerWorkspace } from "@/components/land-validation/FeasibilityAnalyzerWorkspace";
 
 export default function SiteFeasibilityPage() {
-  return (
-    <DashboardSectionPlaceholder
-      title="Site Feasibility"
-      description="Terrain, zoning, and environmental feasibility analysis."
-    />
-  );
+  return <FeasibilityAnalyzerWorkspace />;
 }

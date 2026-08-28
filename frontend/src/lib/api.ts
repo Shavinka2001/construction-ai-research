@@ -1,3 +1,5 @@
+import { handleUnauthorized } from "@/lib/session-guard";
+
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
 
@@ -62,11 +64,18 @@ export async function apiRequestAuth<T>(
   token: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-  return apiRequest<T>(path, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    },
-  });
+  try {
+    return await apiRequest<T>(path, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...options.headers,
+      },
+    });
+  } catch (err) {
+    if (err instanceof ApiRequestError && err.status === 401) {
+      handleUnauthorized();
+    }
+    throw err;
+  }
 }

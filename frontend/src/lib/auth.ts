@@ -1,4 +1,9 @@
 import { apiRequest } from "@/lib/api";
+import {
+  AUTH_STORAGE_KEY,
+  clearStoredSession,
+  isTokenExpired,
+} from "@/lib/session-guard";
 
 export type UserRole =
   | "CLIENT"
@@ -46,8 +51,6 @@ export type RegisterResponse = {
   created_at: string;
 };
 
-const AUTH_STORAGE_KEY = "construction_ai_auth";
-
 export function getDisplayName(user: AuthUser): string {
   if (user.fullName?.trim()) return user.fullName.trim();
   if (user.email) {
@@ -69,15 +72,20 @@ export function getAuthSession(): AuthUser | null {
   const raw = localStorage.getItem(AUTH_STORAGE_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as AuthUser;
+    const user = JSON.parse(raw) as AuthUser;
+    if (!user?.token || isTokenExpired(user.token)) {
+      clearStoredSession();
+      return null;
+    }
+    return user;
   } catch {
+    clearStoredSession();
     return null;
   }
 }
 
 export function clearAuthSession(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(AUTH_STORAGE_KEY);
+  clearStoredSession();
 }
 
 export async function loginUser(payload: LoginPayload): Promise<AuthUser> {

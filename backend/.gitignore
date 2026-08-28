@@ -27,3 +27,10 @@ uploads/*
 !uploads/.gitkeep
 *.pt
 runs/
+weights/*
+!weights/.gitkeep
+!weights/README.md
+
+# Google Earth Engine service-account key (never commit)
+gee-key.json
+*-gee-key.json

@@ -45,6 +45,7 @@ const CLIENT_NAV: DashboardNavItem[] = [
 
 const SURVEYOR_NAV: DashboardNavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Site Feasibility", href: "/dashboard/site-feasibility", icon: Map },
   { label: "GIS Mapping", href: "/dashboard/gis-mapping", icon: Globe },
   { label: "Topography", href: "/dashboard/topography", icon: Activity },
 ];
