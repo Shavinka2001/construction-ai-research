@@ -7,6 +7,7 @@ import { DashboardSidebar } from "@/components/layout/dashboard/DashboardSidebar
 import { DashboardNavbar } from "@/components/layout/dashboard/DashboardNavbar";
 import { ArchitectWorkspaceProvider } from "@/contexts/ArchitectWorkspaceContext";
 import { getAuthSession, type AuthUser } from "@/lib/auth";
+import { AUTH_STORAGE_KEY } from "@/lib/session-guard";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -15,9 +16,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    let hadStoredSession = false;
+    try {
+      hadStoredSession = !!localStorage.getItem(AUTH_STORAGE_KEY);
+    } catch {
+      /* storage disabled */
+    }
     const session = getAuthSession();
     if (!session?.token) {
-      router.replace("/login");
+      // getAuthSession() drops an expired token — tell the user why.
+      router.replace(hadStoredSession ? "/login?session=expired" : "/login");
       return;
     }
     setUser(session);

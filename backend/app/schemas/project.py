@@ -16,6 +16,14 @@ class ProjectCreate(BaseModel):
     )
 
 
+class ProjectUpdate(BaseModel):
+    """Partial update — only the fields present in the request body are changed."""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = Field(None, max_length=5000)
+    location_gps: Optional[str] = Field(None, max_length=255)
+
+
 class ProjectOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
