@@ -108,11 +108,15 @@ function buildApprovalReportPdf(opts: {
   // Explicit proportional columns: 5% | 30% | 50% | 15%
   const tableW = pageW - margin * 2;
   const colPad = 8; // horizontal breathing room between columns
-  const colDefs = [
-    { key: "index", width: tableW * 0.05, align: "left" as const },
-    { key: "conflict", width: tableW * 0.3, align: "left" as const },
-    { key: "prescription", width: tableW * 0.5, align: "left" as const },
-    { key: "status", width: tableW * 0.15, align: "center" as const },
+  const colDefs: Array<{
+    key: string;
+    width: number;
+    align: "left" | "center" | "right";
+  }> = [
+    { key: "index", width: tableW * 0.05, align: "left" },
+    { key: "conflict", width: tableW * 0.3, align: "left" },
+    { key: "prescription", width: tableW * 0.5, align: "left" },
+    { key: "status", width: tableW * 0.15, align: "center" },
   ];
   let colCursor = margin;
   const cols = colDefs.map((c) => {
@@ -301,6 +305,7 @@ export function ClashDetectionWorkspace() {
     applyingId,
     analyzing,
     showToast,
+    blueprint3d,
   } = useArchitectWorkspace();
 
   const [viewMode, setViewMode] = useState<CanvasViewMode>("original");
@@ -320,6 +325,12 @@ export function ClashDetectionWorkspace() {
     }
     return ids;
   }, [clashes, recommendations]);
+
+  /** Blueprint payload for the 3D viewport — live API walls / openings / columns. */
+  const blueprint3dData = useMemo(() => {
+    if (!hasLiveResult || !blueprint3d) return null;
+    return blueprint3d;
+  }, [hasLiveResult, blueprint3d]);
 
   const displayDetections: DetectionBox[] = useMemo(() => {
     if (viewMode === "original") {
@@ -662,6 +673,7 @@ export function ClashDetectionWorkspace() {
 
           {/* 3D maquette synced to Original / AI-Corrected viewMode */}
           <FloorPlan3DViewport
+            data={blueprint3dData}
             detections={detections}
             recommendations={recommendations}
             architecturalAudit={architecturalAudit}

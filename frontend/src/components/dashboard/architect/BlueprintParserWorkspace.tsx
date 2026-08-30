@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, Ruler, Boxes, Box, LayoutGrid } from "lucide-react";
 import { ProjectPortfolioBar } from "@/components/dashboard/architect/ProjectPortfolioBar";
 import { ClashPlanUploadSection } from "@/components/dashboard/architect/ClashPlanUploadSection";
@@ -31,12 +31,19 @@ export function BlueprintParserWorkspace() {
     resolutionSuccess,
     highlightedDetectionId,
     architecturalAudit,
+    blueprint3d,
   } = useArchitectWorkspace();
 
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("2d");
   const [maquetteMode, setMaquetteMode] = useState<"original" | "corrected">(
     "corrected"
   );
+
+  /** Prefer the live API blueprint payload; never invent demo geometry. */
+  const blueprint3dData = useMemo(() => {
+    if (!hasLiveResult || !blueprint3d) return null;
+    return blueprint3d;
+  }, [hasLiveResult, blueprint3d]);
 
   return (
     <div className="relative space-y-6 sm:space-y-8">
@@ -226,6 +233,7 @@ export function BlueprintParserWorkspace() {
             </div>
           )}
           <FloorPlan3DViewport
+            data={blueprint3dData}
             detections={detections}
             recommendations={recommendations}
             architecturalAudit={architecturalAudit}

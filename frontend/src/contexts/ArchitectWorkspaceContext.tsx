@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import type { CreateProjectFormData } from "@/components/dashboard/architect/CreateProjectModal";
-import type { GcrRecommendation, ArchitecturalAudit } from "@/lib/clash-detection";
+import type { GcrRecommendation, ArchitecturalAudit, Blueprint3DPayload } from "@/lib/clash-detection";
 import {
   runClashDetection,
   buildGcrRecommendations,
@@ -59,9 +59,13 @@ type ArchitectWorkspaceContextValue = {
   clashes: ClashItem[];
   recommendations: GcrRecommendation[];
   architecturalAudit: ArchitecturalAudit;
+  /** Live analysis payload for the 3D viewport (null before upload). */
+  blueprint3d: Blueprint3DPayload | null;
   model: string;
   elementsDetected: number;
   wallLengthFt: number;
+  imageWidth: number;
+  imageHeight: number;
   runAnalysis: () => Promise<void>;
 
   applyingId: string | null;
@@ -109,11 +113,14 @@ export function ArchitectWorkspaceProvider({
   );
   const [architecturalAudit, setArchitecturalAudit] =
     useState<ArchitecturalAudit>(DEFAULT_ARCHITECTURAL_AUDIT);
+  const [blueprint3d, setBlueprint3d] = useState<Blueprint3DPayload | null>(null);
   const [model, setModel] = useState("yolov8_architect+opencv_columns");
   const [elementsDetected, setElementsDetected] = useState(
     DEFAULT_DETECTIONS.length
   );
   const [wallLengthFt] = useState(4850);
+  const [imageWidth, setImageWidth] = useState(1024);
+  const [imageHeight, setImageHeight] = useState(1024);
 
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [highlightedDetectionId, setHighlightedDetectionId] = useState<
@@ -268,6 +275,7 @@ export function ArchitectWorkspaceProvider({
       setArchitecturalAudit(
         result.architecturalAudit ?? DEFAULT_ARCHITECTURAL_AUDIT
       );
+      setBlueprint3d(result.blueprint3d);
       setModel(
         result.model ??
           (result.isAiGenerated
@@ -277,6 +285,8 @@ export function ArchitectWorkspaceProvider({
       setElementsDetected(
         result.elementsDetected ?? result.detections.length
       );
+      setImageWidth(result.imageWidth ?? result.blueprint3d.image_width ?? 1024);
+      setImageHeight(result.imageHeight ?? result.blueprint3d.image_height ?? 1024);
       setHasLiveResult(true);
       const aiCols = result.detections.filter((d) => d.isAiGenerated).length;
       showToast(
@@ -365,9 +375,12 @@ export function ArchitectWorkspaceProvider({
       clashes,
       recommendations,
       architecturalAudit,
+      blueprint3d,
       model,
       elementsDetected,
       wallLengthFt,
+      imageWidth,
+      imageHeight,
       runAnalysis,
       applyingId,
       highlightedDetectionId,
@@ -399,9 +412,12 @@ export function ArchitectWorkspaceProvider({
       clashes,
       recommendations,
       architecturalAudit,
+      blueprint3d,
       model,
       elementsDetected,
       wallLengthFt,
+      imageWidth,
+      imageHeight,
       runAnalysis,
       applyingId,
       highlightedDetectionId,

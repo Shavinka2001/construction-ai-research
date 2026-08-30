@@ -9,6 +9,7 @@ AI-Driven Passive Design & Structural Integrity Audits (Component 2).
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 import cv2
@@ -19,6 +20,8 @@ from app.services.clash_detection import (
     BoundingBox,
     Detection,
     _box_to_percent,
+    _is_sheet_border_contour,
+    _is_sheet_border_segment,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,6 +43,53 @@ def _min_wall_thickness_px(img_w: int, img_h: int) -> float:
     """Resolution-aware thickness floor (6 px @ 1024, scales with the longer side)."""
     scale = max(img_w, img_h) / _MIN_WALL_THICKNESS_REF_CANVAS
     return max(4.0, MIN_WALL_THICKNESS_PX * scale)
+
+
+def _contour_centerline(
+    contour: np.ndarray,
+) -> tuple[float, float, float, float] | None:
+    """
+    True oriented centreline of a wall contour, in image pixels.
+
+    ``cv2.minAreaRect`` recovers the real bearing of a diagonal wall, which the
+    axis-aligned ``boundingRect`` destroys — a 45° wall and a square blob share
+    the same AABB. The centreline runs between the midpoints of the two short
+    edges, so a consumer can extrude it without guessing the orientation.
+    """
+    if contour is None or len(contour) < 3:
+        return None
+    (cx, cy), (rw, rh), angle_deg = cv2.minAreaRect(contour)
+    if rw < 1e-3 and rh < 1e-3:
+        return None
+
+    length = max(rw, rh)
+    # OpenCV reports the angle of the `rw` edge; the long axis is 90° off when
+    # `rh` is the longer side.
+    theta = math.radians(angle_deg if rw >= rh else angle_deg + 90.0)
+    hx = math.cos(theta) * length / 2.0
+    hy = math.sin(theta) * length / 2.0
+    return (cx - hx, cy - hy, cx + hx, cy + hy)
+
+
+def _endpoint_payload(
+    x1: float, y1: float, x2: float, y2: float
+) -> dict[str, float]:
+    """Wall centreline endpoints on the registered canvas (origin top-left)."""
+    return {
+        "x1": round(float(x1), 2),
+        "y1": round(float(y1), 2),
+        "x2": round(float(x2), 2),
+        "y2": round(float(y2), 2),
+    }
+
+
+def _axis_centerline_from_box(box: BoundingBox) -> dict[str, float]:
+    """Fallback centreline along the long axis of an axis-aligned wall box."""
+    if box.width >= box.height:
+        cy = box.ymin + box.height / 2.0
+        return _endpoint_payload(box.xmin, cy, box.xmax, cy)
+    cx = box.xmin + box.width / 2.0
+    return _endpoint_payload(cx, box.ymin, cx, box.ymax)
 
 
 def _stroke_thickness_px(
@@ -128,10 +178,18 @@ def detect_and_classify_walls(
     # Prefer elongated strokes (walls) over furniture blobs
     kernel_h = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 3))
     kernel_v = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 25))
+    # Purely axis-aligned openings erase 45° masonry; the diagonal structuring
+    # elements keep angled walls (bay windows, splayed corridors) in the mask.
+    kernel_d1 = np.eye(21, dtype=np.uint8)
+    kernel_d2 = np.fliplr(kernel_d1).copy()
     walls_h = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_h)
     walls_v = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_v)
+    walls_d1 = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_d1)
+    walls_d2 = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_d2)
     # Undilated mask — used for true ink-width measurement (pre-pad)
-    ink_mask = cv2.bitwise_or(walls_h, walls_v)
+    ink_mask = cv2.bitwise_or(
+        cv2.bitwise_or(walls_h, walls_v), cv2.bitwise_or(walls_d1, walls_d2)
+    )
     wall_mask = cv2.dilate(
         ink_mask, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1
     )
@@ -149,27 +207,34 @@ def detect_and_classify_walls(
         area = float(bw * bh)
         if area < img_area * 0.0005 or area > img_area * 0.45:
             continue
-        aspect = max(bw, bh) / max(min(bw, bh), 1)
+        # The printed drawing-sheet frame is not masonry
+        if _is_sheet_border_contour(contour, w, h):
+            continue
+        # Measure elongation on the oriented rect, not the AABB: a 45° wall has
+        # a square bounding box and would be rejected here as a furniture blob.
+        (_, _), (rect_w, rect_h), _ = cv2.minAreaRect(contour)
+        long_side = max(rect_w, rect_h)
+        short_side = max(min(rect_w, rect_h), 1.0)
+        aspect = long_side / short_side
         # Allow thick load-bearing runs (lower aspect) and thin partitions
         if aspect < 1.6:
             continue
 
-        # AABB short side is a fast reject; confirm with distance-transform sample
-        aabb_thickness = float(min(bw, bh))
-        if aabb_thickness < min_thickness:
+        # Oriented short side is a fast reject; confirm with a stroke sample
+        if short_side < min_thickness:
             rejected_thin += 1
             continue
 
-        if bw >= bh:
-            cx1, cy1 = float(x), float(y + bh * 0.5)
-            cx2, cy2 = float(x + bw), float(y + bh * 0.5)
-        else:
-            cx1, cy1 = float(x + bw * 0.5), float(y)
-            cx2, cy2 = float(x + bw * 0.5), float(y + bh)
+        centerline = _contour_centerline(contour)
+        if centerline is None:
+            continue
+        cx1, cy1, cx2, cy2 = centerline
+        if _is_sheet_border_segment(cx1, cy1, cx2, cy2, w, h):
+            continue
 
         stroke_px = _stroke_thickness_px(ink_mask, cx1, cy1, cx2, cy2)
-        # Prefer measured stroke; fall back to AABB when the sample is empty
-        thickness_px = stroke_px if stroke_px > 0.5 else aabb_thickness
+        # Prefer measured stroke; fall back to the oriented width when empty
+        thickness_px = stroke_px if stroke_px > 0.5 else short_side
         if thickness_px < min_thickness:
             rejected_thin += 1
             continue
@@ -191,6 +256,8 @@ def detect_and_classify_walls(
             box=box,
             source="architectural",
         )
+        # Oriented centreline so the 3D viewport can extrude diagonals correctly
+        endpoints = _endpoint_payload(cx1, cy1, cx2, cy2)
         walls.append(
             _wall_payload(
                 det,
@@ -201,6 +268,7 @@ def detect_and_classify_walls(
                     "thickness_px": round(thickness_px, 1),
                     "aligns_with_column": aligns_with_column,
                     "orientation": "horizontal" if bw >= bh else "vertical",
+                    **endpoints,
                 },
             )
         )
@@ -218,6 +286,10 @@ def detect_and_classify_walls(
                 x1, y1, x2, y2 = line[0]
                 length = float(np.hypot(x2 - x1, y2 - y1))
                 if length < 70:
+                    continue
+                if _is_sheet_border_segment(
+                    float(x1), float(y1), float(x2), float(y2), w, h
+                ):
                     continue
 
                 # Measure on the adaptive-threshold ink (not the dilated mask)
@@ -274,6 +346,8 @@ def detect_and_classify_walls(
                             "orientation": (
                                 "horizontal" if box.width >= box.height else "vertical"
                             ),
+                            # Hough already gives the true segment — keep it verbatim
+                            **_endpoint_payload(x1, y1, x2, y2),
                         },
                     )
                 )

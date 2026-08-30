@@ -28,6 +28,17 @@ class DetectionOut(BaseModel):
     wall_type: Optional[Literal["LOAD_BEARING", "PARTITION"]] = None
     thickness_m: Optional[float] = None
     aligns_with_column: Optional[bool] = None
+    orientation: Optional[str] = Field(
+        None, description="'horizontal' | 'vertical' (AABB long axis)"
+    )
+    x1: Optional[float] = Field(
+        None, description="Wall centreline start X on the registered canvas"
+    )
+    y1: Optional[float] = Field(
+        None, description="Wall centreline start Y (origin top-left, Y-down)"
+    )
+    x2: Optional[float] = Field(None, description="Wall centreline end X")
+    y2: Optional[float] = Field(None, description="Wall centreline end Y")
     is_ai_generated: Optional[bool] = Field(
         False,
         description="True when column was synthesized by the AI-GSL engine",
@@ -143,6 +154,34 @@ class GcrRecommendationOut(BaseModel):
     )
 
 
+class HouseCutoutOut(BaseModel):
+    """Concave inset (car porch / veranda) in pixel coordinates."""
+
+    min_x: float
+    min_y: float
+    max_x: float
+    max_y: float
+    corner: str = "se"
+
+
+class HouseBoundsOut(BaseModel):
+    """
+    True pixel footprint of the building after the drawing-sheet frame is
+    filtered out. The 3D viewport centres and scales on this box so walls,
+    doors and windows share one aligned origin.
+    """
+
+    min_x: float
+    min_y: float
+    max_x: float
+    max_y: float
+    center_x: float
+    center_y: float
+    width: float
+    height: float
+    cutout: Optional[HouseCutoutOut] = None
+
+
 class ClashMeta(BaseModel):
     openings_count: int
     columns_count: int
@@ -153,6 +192,9 @@ class ClashMeta(BaseModel):
     registration: Optional[str] = None
     walls_count: Optional[int] = None
     generative_structural_layout: Optional[bool] = None
+    image_width: Optional[int] = None
+    image_height: Optional[int] = None
+    house_bounds: Optional[HouseBoundsOut] = None
 
 
 class ClashDetectionResult(BaseModel):
@@ -163,9 +205,16 @@ class ClashDetectionResult(BaseModel):
     the existing Next.js canvas normalizer.
     """
 
+    image_width: int = Field(
+        1024, description="Registered blueprint canvas width in pixels"
+    )
+    image_height: int = Field(
+        1024, description="Registered blueprint canvas height in pixels"
+    )
     architectural_detections: List[DetectionOut] = Field(default_factory=list)
     structural_detections: List[DetectionOut] = Field(default_factory=list)
     walls: List[DetectionOut] = Field(default_factory=list)
+    house_bounds: Optional[HouseBoundsOut] = None
     clashes: List[ClashOut]
     recommendations: List[GcrRecommendationOut] = Field(default_factory=list)
     architectural_audit: Optional[ArchitecturalAuditOut] = None

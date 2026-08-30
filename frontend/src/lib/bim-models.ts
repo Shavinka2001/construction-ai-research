@@ -16,7 +16,8 @@ export const BIM_LAWN_FIT = 20;
  * Unknown projects fall through to `/models/{slug}.glb`, then `default_house.glb`.
  */
 export const BIM_MODEL_CATALOG: Record<string, string> = {
-  default: "/models/default_house.glb",
+  // Structural geometry is glTF-only now, so the default must always resolve.
+  default: "/models/test1.glb",
   "default house": "/models/default_house.glb",
   "southern farmhouse": "/models/southern_farmhouse.glb",
   southern_farmhouse: "/models/southern_farmhouse.glb",
