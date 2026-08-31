@@ -1,23 +1,68 @@
 "use client";
 
+import { transectStats } from "@/lib/feasibility-insights";
+
 export function ElevationProfileChart({
   transect,
   slopeDeg,
+  compact = false,
 }: {
   transect: number[];
   slopeDeg?: number;
+  compact?: boolean;
 }) {
   if (!transect || transect.length === 0) return null;
 
+  const stats = transectStats(transect)!;
   const w = 520;
-  const h = 180;
-  const padL = 40;
-  const padB = 24;
+  const h = compact ? 110 : 180;
+  const padL = compact ? 24 : 40;
+  const padB = compact ? 14 : 24;
   const padT = 12;
-  const min = Math.min(...transect);
-  const max = Math.max(...transect);
+  const { min, max } = stats;
   const range = max - min || 1;
-  const barW = (w - padL - 8) / transect.length;
+
+  // Smooth area path across the transect.
+  const px = (i: number) => padL + (i * (w - padL - 6)) / (transect.length - 1);
+  const py = (v: number) => h - padB - ((v - min) / range) * (h - padT - padB);
+  const line = transect.map((v, i) => `${i === 0 ? "M" : "L"} ${px(i).toFixed(1)} ${py(v).toFixed(1)}`).join(" ");
+  const area = `${line} L ${px(transect.length - 1).toFixed(1)} ${h - padB} L ${padL} ${h - padB} Z`;
+
+  const body = (
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      className="w-full"
+      role="img"
+      aria-label={`${transect.length}-point west-to-east elevation profile`}
+      preserveAspectRatio="none"
+    >
+      {[0, 0.5, 1].map((t) => {
+        const y = padT + (h - padT - padB) * t;
+        const val = max - range * t;
+        return (
+          <g key={t}>
+            <line x1={padL} y1={y} x2={w - 4} y2={y} stroke="#e2e8f0" strokeWidth="1" />
+            {!compact && (
+              <text x={4} y={y + 3} style={{ fontSize: 9 }} className="fill-slate-400">
+                {val.toFixed(0)}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      <path d={area} fill="#B8942E" fillOpacity={0.14} />
+      <path d={line} fill="none" stroke="#B8942E" strokeWidth={compact ? 1.5 : 2} />
+      <line x1={padL} y1={h - padB} x2={w - 4} y2={h - padB} stroke="#94a3b8" strokeWidth="1" />
+      <text x={padL} y={h - 3} style={{ fontSize: 9 }} className="fill-slate-400">
+        W
+      </text>
+      <text x={w - 12} y={h - 3} style={{ fontSize: 9 }} className="fill-slate-400">
+        E
+      </text>
+    </svg>
+  );
+
+  if (compact) return body;
 
   return (
     <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-luxury">
@@ -27,55 +72,17 @@ export function ElevationProfileChart({
         </p>
         {slopeDeg != null && (
           <span className="text-xs text-slate-500">
-            slope ≈ <span className="font-semibold text-slate-700">{slopeDeg.toFixed(1)}°</span>
+            slope ≈{" "}
+            <span className="font-semibold text-slate-700">
+              {slopeDeg.toFixed(1)}°
+            </span>
           </span>
         )}
       </div>
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        className="mt-3 w-full"
-        role="img"
-        aria-label="14-point west-to-east elevation profile"
-      >
-        {[0, 0.5, 1].map((t) => {
-          const y = padT + (h - padT - padB) * t;
-          const val = max - range * t;
-          return (
-            <g key={t}>
-              <line x1={padL} y1={y} x2={w - 4} y2={y} stroke="#e2e8f0" strokeWidth="1" />
-              <text x={4} y={y + 3} style={{ fontSize: 9 }} className="fill-slate-400">
-                {val.toFixed(0)}
-              </text>
-            </g>
-          );
-        })}
-        {transect.map((v, i) => {
-          const bh = ((v - min) / range) * (h - padT - padB);
-          const x = padL + i * barW;
-          const y = h - padB - bh;
-          return (
-            <rect
-              key={i}
-              x={x + 1}
-              y={y}
-              width={Math.max(barW - 2, 1)}
-              height={Math.max(bh, 1)}
-              rx="1.5"
-              fill="#B8942E"
-              opacity={0.85}
-            />
-          );
-        })}
-        <line x1={padL} y1={h - padB} x2={w - 4} y2={h - padB} stroke="#94a3b8" strokeWidth="1" />
-        <text x={padL} y={h - 6} style={{ fontSize: 9 }} className="fill-slate-400">
-          W
-        </text>
-        <text x={w - 12} y={h - 6} style={{ fontSize: 9 }} className="fill-slate-400">
-          E
-        </text>
-      </svg>
+      <div className="mt-3">{body}</div>
       <p className="mt-1 text-[11px] text-slate-400">
-        Elevation in metres across a ~200 m west-to-east section through the anchor.
+        Elevation in metres across a ~200 m west-to-east section through the
+        anchor · relief {stats.relief.toFixed(1)} m.
       </p>
     </div>
   );

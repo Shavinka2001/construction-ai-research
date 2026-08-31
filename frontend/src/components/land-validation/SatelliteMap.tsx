@@ -11,6 +11,7 @@ import {
 } from "react-leaflet";
 import type { GeoJsonObject } from "geojson";
 import type { Anchor, GeoJson } from "@/lib/land-validation";
+import { cn } from "@/lib/utils";
 
 const ESRI_IMAGERY =
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
@@ -54,7 +55,12 @@ export function SatelliteMapImpl({
   const markerRef = useRef<L.Marker>(null);
 
   return (
-    <div className={className ?? "h-[420px] w-full overflow-hidden rounded-2xl border border-slate-200"}>
+    <div
+      className={cn(
+        "relative w-full overflow-hidden rounded-2xl border border-slate-200",
+        className ?? "h-[440px] lg:h-[520px]"
+      )}
+    >
       <MapContainer
         center={center}
         zoom={anchor ? 18 : 12}
@@ -100,6 +106,26 @@ export function SatelliteMapImpl({
           />
         )}
       </MapContainer>
+
+      <div className="pointer-events-none absolute bottom-3 left-3 z-[400] hidden rounded-lg border border-slate-200 bg-white/90 px-3 py-2.5 shadow-sm backdrop-blur sm:block">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          Legend
+        </p>
+        <ul className="mt-1.5 space-y-1 text-[11px] text-slate-600">
+          <li className="flex items-center gap-2">
+            <span className="h-0 w-4 shrink-0 border-t-2 border-dashed border-gold" />
+            Lot boundary
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="h-3 w-3 shrink-0 rounded-sm border border-emerald-600 bg-emerald-500/30" />
+            Buildable envelope
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="h-3 w-3 shrink-0 rounded-full border-2 border-white bg-emerald-600 shadow" />
+            Site anchor (drag to adjust)
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
