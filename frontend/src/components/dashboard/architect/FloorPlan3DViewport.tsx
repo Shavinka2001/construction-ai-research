@@ -61,6 +61,7 @@ export type BlueprintDetection = {
   xmin?: number;
   ymax?: number;
   xmax?: number;
+  confidence?: number | string;
   segment?: { x1: number; y1: number; x2: number; y2: number };
 };
 
@@ -132,6 +133,9 @@ const DOOR_HEAD_Y = DOOR_LEAF_H + DOOR_JAMB_THICK * 2;
 const WINDOW_CENTER_Y = 1.55;
 /** Reveal left around a frame so masonry never Z-fights the joinery. */
 const OPENING_CUT_PAD = 0.09;
+/** NMS radius — duplicate detections within this plan distance merge to one opening. */
+const OPENING_NMS_PX = 40;
+const OPENING_NMS_M = 0.8;
 
 // ---------------------------------------------------------------------------
 // Lifecycle helpers
@@ -441,6 +445,62 @@ function detectionCenter(
 
 function detectionLabel(det: BlueprintDetection): string {
   return String(det.label ?? det.class_name ?? det.id ?? det.kind ?? "").toLowerCase();
+}
+
+function openingConfidence(det: BlueprintDetection): number {
+  const raw = det.confidence;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string") {
+    const n = Number.parseFloat(raw.replace("%", ""));
+    if (Number.isFinite(n)) return n;
+  }
+  return 50;
+}
+
+/**
+ * Spatial NMS for door/window detections before 3D mounting.
+ *
+ * Multiple YOLO boxes on one doorway become a single frame + one wall cut.
+ */
+function dedupeOpeningDetections(
+  detections: BlueprintDetection[],
+  imgW: number,
+  imgH: number,
+  nmsPx = OPENING_NMS_PX
+): BlueprintDetection[] {
+  const doors = detections.filter((d) => detectionLabel(d).includes("door"));
+  const windows = detections.filter((d) => detectionLabel(d).includes("window"));
+  const other = detections.filter(
+    (d) => !detectionLabel(d).includes("door") && !detectionLabel(d).includes("window")
+  );
+
+  const nms = (items: BlueprintDetection[], prefix: "D" | "W") => {
+    const ranked = [...items].sort((a, b) => openingConfidence(b) - openingConfidence(a));
+    const kept: BlueprintDetection[] = [];
+    for (const det of ranked) {
+      const center = detectionCenter(det, imgW, imgH);
+      if (!center) continue;
+      const duplicate = kept.some((k) => {
+        const kc = detectionCenter(k, imgW, imgH);
+        if (!kc) return false;
+        return Math.hypot(center.cx - kc.cx, center.cy - kc.cy) <= nmsPx;
+      });
+      if (!duplicate) kept.push(det);
+    }
+    kept.sort((a, b) => {
+      const ac = detectionCenter(a, imgW, imgH);
+      const bc = detectionCenter(b, imgW, imgH);
+      if (!ac || !bc) return 0;
+      return ac.cy - bc.cy || ac.cx - bc.cx;
+    });
+    return kept.map((det, i) => ({
+      ...det,
+      id: `${prefix}${i + 1}`,
+      label: prefix === "D" ? `Door D${i + 1}` : `Window W${i + 1}`,
+    }));
+  };
+
+  return [...nms(doors, "D"), ...nms(windows, "W"), ...other];
 }
 
 function wallsFromDetections(
@@ -1183,13 +1243,24 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): THREE.Grou
 
   // 4) Mount every opening inside a wall run and record the hole to carve
   const cutsByRun = new Map<number, RunCut[]>();
+  const mountedOpenings: { x: number; z: number }[] = [];
   const addCut = (runIndex: number, cut: RunCut) => {
     const list = cutsByRun.get(runIndex);
+    const duplicate = list?.some(
+      (c) => Math.abs(c.t0 - cut.t0) < 0.45 && Math.abs(c.t1 - cut.t1) < 0.45
+    );
+    if (duplicate) return;
     if (list) list.push(cut);
     else cutsByRun.set(runIndex, [cut]);
   };
 
-  for (const det of data.architectural_detections ?? []) {
+  const openingDetections = dedupeOpeningDetections(
+    data.architectural_detections ?? [],
+    imgW,
+    imgH
+  );
+
+  for (const det of openingDetections) {
     const center = detectionCenter(det, imgW, imgH);
     if (!center) continue;
     const label = detectionLabel(det);
@@ -1222,6 +1293,16 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): THREE.Grou
     const outward = new THREE.Vector3(anchor.outwardX, 0, anchor.outwardZ);
     const half = openingW / 2 + OPENING_CUT_PAD;
     const embed = embedInWall(anchor, WALL_DEPTH_M);
+
+    if (
+      mountedOpenings.some(
+        (p) => Math.hypot(p.x - embed.x, p.z - embed.z) < OPENING_NMS_M
+      )
+    ) {
+      continue;
+    }
+    mountedOpenings.push({ x: embed.x, z: embed.z });
+
     if (isWindow) {
       const sillY = Math.max(0.35, WINDOW_CENTER_Y - size.h / 2 - 0.08);
       addCut(runIndex, {

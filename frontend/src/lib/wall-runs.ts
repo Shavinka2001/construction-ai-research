@@ -213,6 +213,66 @@ export function mergeDoubleWallRuns(
 }
 
 /**
+ * Collapse parallel runs on the same wall line into one centreline.
+ *
+ * Residual double strokes on an elevation (e.g. the front bottom wall) become a
+ * single crisp exterior segment instead of two overlapping meshes.
+ */
+export function collapseCoplanarRuns(runs: WallRun[], perpTol: number): WallRun[] {
+  if (runs.length < 2) return runs;
+
+  const buckets: Record<Axis, WallRun[]> = { x: [], z: [] };
+  for (const run of runs) {
+    buckets[runAxis(run)].push(run);
+  }
+
+  const used = new Set<WallRun>();
+  const out: WallRun[] = [];
+
+  for (const axis of ["x", "z"] as const) {
+    for (const seed of buckets[axis]) {
+      if (used.has(seed)) continue;
+
+      const cluster = [seed];
+      used.add(seed);
+      let lo = runSpan(seed, axis).lo;
+      let hi = runSpan(seed, axis).hi;
+      const perps = [runSpan(seed, axis).perp];
+
+      let expanded = true;
+      while (expanded) {
+        expanded = false;
+        const meanPerp = perps.reduce((a, b) => a + b, 0) / perps.length;
+        for (const other of buckets[axis]) {
+          if (used.has(other)) continue;
+          const span = runSpan(other, axis);
+          if (Math.abs(span.perp - meanPerp) > perpTol) continue;
+          const overlap = Math.min(hi, span.hi) - Math.max(lo, span.lo);
+          const union = Math.max(hi, span.hi) - Math.min(lo, span.lo);
+          if (overlap < 0.25 && union > overlap + 0.35) continue;
+          cluster.push(other);
+          used.add(other);
+          perps.push(span.perp);
+          lo = Math.min(lo, span.lo);
+          hi = Math.max(hi, span.hi);
+          expanded = true;
+        }
+      }
+
+      const perp = perps.reduce((a, b) => a + b, 0) / perps.length;
+      const depth = Math.max(...cluster.map((r) => r.depth));
+      out.push(
+        axis === "x"
+          ? { sx: lo, ex: hi, sz: perp, ez: perp, depth }
+          : { sx: perp, ex: perp, sz: lo, ez: hi, depth }
+      );
+    }
+  }
+
+  return out;
+}
+
+/**
  * Pull parallel runs onto shared grid lines.
  *
  * Separate extraction passes measure the same wall a few centimetres apart, so
@@ -869,6 +929,8 @@ export function buildOrthogonalLayout(candidates: WallRun[], scale = 0.036): Wal
       runs = weldRunCorners(trimRunsAgainstCutout(runs, cutout, bounds));
     }
   }
+  runs = collapseCoplanarRuns(runs, tol.gridSnap);
+  runs = weldRunCorners(runs, tol.cornerWeld);
   return runs;
 }
 

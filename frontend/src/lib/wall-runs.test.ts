@@ -5,6 +5,7 @@ import {
   boundsFromRuns,
   buildOrthogonalLayout,
   closeCollinearGaps,
+  collapseCoplanarRuns,
   collectWallJunctions,
   coveredSpansAlongEdge,
   edgeCoverageRatio,
@@ -402,6 +403,19 @@ describe("full pipeline", () => {
         expect(spans[i][0] - spans[i - 1][1]).toBeGreaterThan(MAX_BRIDGE_GAP_M);
       }
     }
+  });
+});
+
+describe("collapseCoplanarRuns", () => {
+  it("merges two parallel bottom-wall strokes into one centreline", () => {
+    const merged = collapseCoplanarRuns(
+      [run(0, 0, 10, 0), run(0, 0.15, 10, 0.15)],
+      0.22
+    );
+    expect(merged).toHaveLength(1);
+    expect(merged[0].sz).toBeCloseTo(0.075, 9);
+    expect(merged[0].sx).toBeCloseTo(0, 9);
+    expect(merged[0].ex).toBeCloseTo(10, 9);
   });
 });
 

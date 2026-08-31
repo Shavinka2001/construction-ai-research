@@ -135,6 +135,8 @@ SWING_ARC_MIN_CURVATURE = 1.22
 # Staircase tread lines: parallel strokes closer than this are hatching, not walls.
 STAIR_STEP_MAX_SPACING_PX = 15.0
 STAIR_MIN_STEP_LINES = 4
+# Non-maximum suppression radius for duplicate door/window detections at one opening.
+OPENING_NMS_RADIUS_PX = 40.0
 
 
 @dataclass(frozen=True)
@@ -1083,6 +1085,102 @@ def _opening_kind_from_context(
     return "door"
 
 
+def _opening_centre(opening: Detection) -> tuple[float, float]:
+    return (
+        opening.box.xmin + opening.box.width / 2.0,
+        opening.box.ymin + opening.box.height / 2.0,
+    )
+
+
+def _is_door_detection(det: Detection) -> bool:
+    label = det.label.lower()
+    return det.id.startswith("D") or "door" in label
+
+
+def _is_window_detection(det: Detection) -> bool:
+    label = det.label.lower()
+    return det.id.startswith("W") or "window" in label
+
+
+def dedupe_openings_nms(
+    openings: list[Detection],
+    *,
+    radius_px: float = OPENING_NMS_RADIUS_PX,
+) -> list[Detection]:
+    """
+    Spatial NMS for door/window detections.
+
+    YOLO and symbol fallback often fire multiple boxes on one doorway; keeping
+    the highest-confidence centre within ``radius_px`` guarantees one mesh per
+    opening in the 3D viewport.
+    """
+    if len(openings) < 2:
+        return openings
+
+    doors = [o for o in openings if _is_door_detection(o)]
+    windows = [o for o in openings if _is_window_detection(o)]
+    other = [
+        o
+        for o in openings
+        if o not in doors and o not in windows
+    ]
+
+    def nms_cluster(items: list[Detection]) -> list[Detection]:
+        ranked = sorted(items, key=lambda o: o.confidence, reverse=True)
+        kept: list[Detection] = []
+        for det in ranked:
+            cx, cy = _opening_centre(det)
+            if any(
+                math.hypot(cx - _opening_centre(k)[0], cy - _opening_centre(k)[1])
+                <= radius_px
+                for k in kept
+            ):
+                continue
+            kept.append(det)
+        return kept
+
+    deduped_doors = nms_cluster(doors)
+    deduped_windows = nms_cluster(windows)
+
+    deduped_doors.sort(key=_opening_centre)
+    deduped_windows.sort(key=_opening_centre)
+
+    renumbered: list[Detection] = []
+    for idx, det in enumerate(deduped_doors, start=1):
+        renumbered.append(
+            Detection(
+                id=f"D{idx}",
+                label=f"Door D{idx}",
+                confidence=det.confidence,
+                box=det.box,
+                source=det.source,
+            )
+        )
+    for idx, det in enumerate(deduped_windows, start=1):
+        renumbered.append(
+            Detection(
+                id=f"W{idx}",
+                label=f"Window W{idx}",
+                confidence=det.confidence,
+                box=det.box,
+                source=det.source,
+            )
+        )
+    renumbered.extend(other)
+
+    dropped = len(openings) - len(renumbered)
+    if dropped:
+        logger.info(
+            "Opening NMS: %d -> %d (%d door(s), %d window(s), %d duplicate(s) removed)",
+            len(openings),
+            len(renumbered),
+            len(deduped_doors),
+            len(deduped_windows),
+            dropped,
+        )
+    return renumbered
+
+
 def reclassify_openings(
     openings: list[Detection],
     walls: list[dict[str, Any]],
@@ -1098,6 +1196,7 @@ def reclassify_openings(
     if not openings:
         return openings
 
+    openings = dedupe_openings_nms(openings)
     bounds = bounds or house_bounds_from_walls(walls)
     swing_arcs = _detect_door_swing_arcs(image)
 
@@ -1154,7 +1253,7 @@ def reclassify_openings(
         len(windows),
         len(openings),
     )
-    return renumbered
+    return dedupe_openings_nms(renumbered)
 
 
 def _opening_box_at(
@@ -1344,7 +1443,7 @@ def detect_opening_symbols(
                     cx - (k.box.xmin + k.box.width / 2.0),
                     cy - (k.box.ymin + k.box.height / 2.0),
                 )
-                < 30.0
+                < 40.0
                 for k in kept
             ):
                 continue
@@ -2181,6 +2280,71 @@ def _weld_segment_corners(
     return welded
 
 
+def _collapse_coplanar_segments(
+    segments: list[dict[str, Any]],
+    *,
+    tol_px: float = GRID_SNAP_TOL_PX,
+) -> list[dict[str, Any]]:
+    """
+    Merge parallel segments on the same wall line into one centreline.
+
+    Residual double strokes on an elevation (e.g. the bottom front wall) become
+    a single crisp segment instead of two overlapping extrusions.
+    """
+    if len(segments) < 2:
+        return segments
+
+    buckets: dict[str, list[dict[str, Any]]] = {"h": [], "v": []}
+    for seg in segments:
+        key = "h" if _segment_is_horizontal(seg) else "v"
+        buckets[key].append(seg)
+
+    used: set[int] = set()
+    merged: list[dict[str, Any]] = []
+
+    for horizontal in (True, False):
+        key = "h" if horizontal else "v"
+        for seed in buckets[key]:
+            sid = id(seed)
+            if sid in used:
+                continue
+            cluster = [seed]
+            used.add(sid)
+            lo, hi, _ = _segment_run_span(seed, horizontal)
+            perps = [_segment_run_span(seed, horizontal)[2]]
+
+            expanded = True
+            while expanded:
+                expanded = False
+                mean_perp = sum(perps) / len(perps)
+                for other in buckets[key]:
+                    oid = id(other)
+                    if oid in used:
+                        continue
+                    olo, ohi, operp = _segment_run_span(other, horizontal)
+                    if abs(operp - mean_perp) > tol_px:
+                        continue
+                    overlap = min(hi, ohi) - max(lo, olo)
+                    union = max(hi, ohi) - min(lo, olo)
+                    if overlap < 8.0 and union > overlap + 12.0:
+                        continue
+                    cluster.append(other)
+                    used.add(oid)
+                    perps.append(operp)
+                    lo, hi = min(lo, olo), max(hi, ohi)
+                    expanded = True
+
+            merged.append(_centreline_from_cluster(cluster, horizontal))
+
+    if len(merged) < len(segments):
+        logger.info(
+            "Coplanar wall merge: %d segment(s) -> %d centreline(s)",
+            len(segments),
+            len(merged),
+        )
+    return merged
+
+
 def consolidate_wall_segments(
     segments: list[dict[str, Any]],
     *,
@@ -2707,6 +2871,8 @@ def extract_room_boundary_walls(
     walls = _snap_segments_to_grid(walls)
     walls = _bridge_collinear_gaps(walls)
     walls = _weld_segment_corners(walls)
+    walls = _collapse_coplanar_segments(walls)
+    walls = _weld_segment_corners(walls)
 
     bounds = house_bounds_from_walls(walls)
     cutout = None
@@ -3108,6 +3274,8 @@ def detect_clashes(
                 len(fill_in),
                 len(openings),
             )
+
+    openings = dedupe_openings_nms(openings)
 
     # --- 5) Columns: OpenCV structural plan OR Generative Structural Layout -----
     ai_generated = False
