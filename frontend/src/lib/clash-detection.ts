@@ -25,6 +25,12 @@ export type DetectionBox = {
   wallType?: WallType;
   thicknessM?: number;
   alignsWithColumn?: boolean;
+  /**
+   * Wall centreline endpoints in canvas pixels (origin top-left, Y-down).
+   * Present only for walls; carries the true bearing that the axis-aligned
+   * box cannot express, so the 3D viewport can extrude diagonals.
+   */
+  segment?: { x1: number; y1: number; x2: number; y2: number };
   /** True when column was synthesized by AI-GSL (no structural plan). */
   isAiGenerated?: boolean;
 };
@@ -69,20 +75,103 @@ export type GcrRecommendation = {
   verificationLog?: string;
 };
 
+/** Wall centreline in registered canvas pixels (origin top-left, Y-down). */
+export type WallSegment = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  thickness?: number;
+};
+
+/**
+ * Pixel footprint of the building with the drawing-sheet frame excluded.
+ *
+ * The 3D viewport centres on this box instead of the canvas centre, so the
+ * printed sheet border can no longer offset the model.
+ */
+export type HouseCutout = {
+  min_x: number;
+  min_y: number;
+  max_x: number;
+  max_y: number;
+  corner?: string;
+};
+
+export type HouseBounds = {
+  min_x: number;
+  min_y: number;
+  max_x: number;
+  max_y: number;
+  center_x: number;
+  center_y: number;
+  width: number;
+  height: number;
+  cutout?: HouseCutout | null;
+};
+
+/** Blueprint payload shaped for the 3D viewport. */
+export type Blueprint3DPayload = {
+  image_width: number;
+  image_height: number;
+  walls: WallSegment[];
+  architectural_detections: DetectionBox[];
+  structural_detections: DetectionBox[];
+  house_bounds: HouseBounds | null;
+  openings_schedule?: OpeningsSchedule | null;
+};
+
+export type OpeningScheduleItem = {
+  id: string;
+  name: string;
+  size: string;
+  type: string;
+};
+
+export type OpeningsSchedule = {
+  totalDoors: number;
+  totalWindows: number;
+  doorsList: OpeningScheduleItem[];
+  windowsList: OpeningScheduleItem[];
+};
+
 export type ClashDetectionResult = {
   detections: DetectionBox[];
   architecturalDetections: DetectionBox[];
   structuralDetections: DetectionBox[];
+  /** Raw wall segments for the 3D viewport (pixel coordinates). */
+  walls: WallSegment[];
+  /** Ready-to-render 3D blueprint payload (preferred over reconstructing). */
+  blueprint3d: Blueprint3DPayload;
   clashes: ClashItem[];
   recommendations: GcrRecommendation[];
   architecturalAudit?: ArchitecturalAudit | null;
+  openingsSchedule?: OpeningsSchedule | null;
   model?: string;
   elementsDetected?: number;
   isAiGenerated?: boolean;
+  /** Registered blueprint canvas width in pixels (origin top-left). */
+  imageWidth?: number;
+  /** Registered blueprint canvas height in pixels (origin top-left). */
+  imageHeight?: number;
 };
 
 export type CrossVentilationStatus = "PASSED" | "WARNING";
 export type SolarGainStatus = "OK" | "HIGH_WEST_EXPOSURE";
+
+export type ComplianceStatus = "PASSED" | "WARNING";
+
+export type RoomComplianceItem = {
+  roomId: string;
+  areaSqM: number;
+  areaSqFt: number;
+  windowToFloorRatio: number;
+  lightingStatus: ComplianceStatus;
+  codeStatus: ComplianceStatus;
+  minDimensionM: number;
+  openingIds: string[];
+  recommendation?: string | null;
+};
 
 export type ArchitecturalAudit = {
   wallClassifications: {
@@ -114,6 +203,30 @@ export type ArchitecturalAudit = {
     summary?: string;
     recommendation?: string | null;
     westFacingLivingWindows: Array<{ id: string; label: string }>;
+  };
+  roomCompliance?: {
+    status: ComplianceStatus;
+    lightingStatus: ComplianceStatus;
+    codeStatus: ComplianceStatus;
+    lightingSummary?: string;
+    codeSummary?: string;
+    summary?: string;
+    rooms: RoomComplianceItem[];
+  };
+  lightingVentilation?: {
+    status: ComplianceStatus;
+    summary?: string;
+    minWindowToFloorRatio: number;
+    rooms: RoomComplianceItem[];
+  };
+  structuralGrid?: {
+    status: "CLASH_FREE" | "REVIEW_REQUIRED";
+    synthesisMode: string;
+    columnCount: number;
+    clashFree: boolean;
+    clashesCount: number;
+    summary?: string;
+    recommendation?: string | null;
   };
 };
 
@@ -281,6 +394,14 @@ type RawDetection = {
   thickness_m?: number;
   aligns_with_column?: boolean;
   is_ai_generated?: boolean;
+  x1?: number | string;
+  y1?: number | string;
+  x2?: number | string;
+  y2?: number | string;
+  start_x?: number | string;
+  start_y?: number | string;
+  end_x?: number | string;
+  end_y?: number | string;
 };
 
 type RawClash = {
@@ -334,6 +455,145 @@ function bboxToPercents(
     left: `${((xmin / canvas) * 100).toFixed(2)}%`,
     width: `${(((xmax - xmin) / canvas) * 100).toFixed(2)}%`,
     height: `${(((ymax - ymin) / canvas) * 100).toFixed(2)}%`,
+  };
+}
+
+function toFiniteNumber(value: number | string | undefined): number | null {
+  if (value === undefined || value === null) return null;
+  const parsed = typeof value === "number" ? value : Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Wall centreline endpoints, accepting either the `x1/y1/x2/y2` shape or the
+ * `start_x/start_y/end_x/end_y` alias. Returns null unless all four are present
+ * and the segment has non-zero length, so callers can fall back to the box.
+ */
+function readSegment(item: RawDetection): DetectionBox["segment"] {
+  const x1 = toFiniteNumber(item.x1 ?? item.start_x);
+  const y1 = toFiniteNumber(item.y1 ?? item.start_y);
+  const x2 = toFiniteNumber(item.x2 ?? item.end_x);
+  const y2 = toFiniteNumber(item.y2 ?? item.end_y);
+  if (x1 === null || y1 === null || x2 === null || y2 === null) return undefined;
+  if (Math.hypot(x2 - x1, y2 - y1) < 1) return undefined;
+  return { x1, y1, x2, y2 };
+}
+
+function segmentFromDetection(box: DetectionBox, imgW: number, imgH: number): WallSegment | null {
+  if (box.segment) {
+    return {
+      x1: box.segment.x1,
+      y1: box.segment.y1,
+      x2: box.segment.x2,
+      y2: box.segment.y2,
+      thickness: box.thicknessM ? Math.round(box.thicknessM * 100) : undefined,
+    };
+  }
+  const left = Number.parseFloat(String(box.left).replace("%", ""));
+  const top = Number.parseFloat(String(box.top).replace("%", ""));
+  const w = Number.parseFloat(String(box.width).replace("%", ""));
+  const h = Number.parseFloat(String(box.height).replace("%", ""));
+  if (![left, top, w, h].every(Number.isFinite)) return null;
+  const wPx = Math.max(4, (w / 100) * imgW);
+  const hPx = Math.max(4, (h / 100) * imgH);
+  const cx = (left / 100) * imgW + wPx / 2;
+  const cy = (top / 100) * imgH + hPx / 2;
+  return wPx >= hPx
+    ? { x1: cx - wPx / 2, y1: cy, x2: cx + wPx / 2, y2: cy }
+    : { x1: cx, y1: cy - hPx / 2, x2: cx, y2: cy + hPx / 2 };
+}
+
+function normalizeWallSegments(
+  raw: unknown,
+  wallDetections: DetectionBox[],
+  imgW: number,
+  imgH: number
+): WallSegment[] {
+  const fromRaw: WallSegment[] = [];
+  if (Array.isArray(raw)) {
+    for (const item of raw as RawDetection[]) {
+      const seg = readSegment(item);
+      if (!seg) continue;
+      const thickness = toFiniteNumber(
+        (item as { thickness?: number | string; thickness_px?: number | string })
+          .thickness ??
+          (item as { thickness_px?: number | string }).thickness_px
+      );
+      fromRaw.push({
+        ...seg,
+        ...(thickness !== null ? { thickness } : {}),
+      });
+    }
+  }
+  if (fromRaw.length > 0) return fromRaw;
+
+  return wallDetections
+    .map((d) => segmentFromDetection(d, imgW, imgH))
+    .filter((s): s is WallSegment => s !== null);
+}
+
+function normalizeHouseBounds(raw: unknown): HouseBounds | null {
+  if (!raw || typeof raw !== "object") return null;
+  const b = raw as Record<string, string | number | undefined>;
+  const minX = toFiniteNumber(b.min_x);
+  const minY = toFiniteNumber(b.min_y);
+  const maxX = toFiniteNumber(b.max_x);
+  const maxY = toFiniteNumber(b.max_y);
+  if (minX === null || minY === null || maxX === null || maxY === null) return null;
+  if (maxX <= minX || maxY <= minY) return null;
+
+  const cutRaw = (raw as { cutout?: unknown }).cutout;
+  let cutout: HouseCutout | null = null;
+  if (cutRaw && typeof cutRaw === "object") {
+    const c = cutRaw as Record<string, string | number | undefined>;
+    const cMinX = toFiniteNumber(c.min_x);
+    const cMinY = toFiniteNumber(c.min_y);
+    const cMaxX = toFiniteNumber(c.max_x);
+    const cMaxY = toFiniteNumber(c.max_y);
+    if (cMinX !== null && cMinY !== null && cMaxX !== null && cMaxY !== null) {
+      cutout = {
+        min_x: cMinX,
+        min_y: cMinY,
+        max_x: cMaxX,
+        max_y: cMaxY,
+        corner: typeof c.corner === "string" ? c.corner : undefined,
+      };
+    }
+  }
+
+  return {
+    min_x: minX,
+    min_y: minY,
+    max_x: maxX,
+    max_y: maxY,
+    center_x: toFiniteNumber(b.center_x) ?? (minX + maxX) / 2,
+    center_y: toFiniteNumber(b.center_y) ?? (minY + maxY) / 2,
+    width: toFiniteNumber(b.width) ?? maxX - minX,
+    height: toFiniteNumber(b.height) ?? maxY - minY,
+    cutout,
+  };
+}
+
+/** Derive the footprint locally when the backend didn't supply one. */
+function houseBoundsFromWalls(walls: WallSegment[]): HouseBounds | null {
+  if (walls.length === 0) return null;
+  const xs = walls.flatMap((w) => [w.x1, w.x2]);
+  const ys = walls.flatMap((w) => [w.y1, w.y2]);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  if (!Number.isFinite(minX) || maxX <= minX || maxY <= minY) return null;
+
+  return {
+    min_x: minX,
+    min_y: minY,
+    max_x: maxX,
+    max_y: maxY,
+    center_x: (minX + maxX) / 2,
+    center_y: (minY + maxY) / 2,
+    width: maxX - minX,
+    height: maxY - minY,
   };
 }
 
@@ -397,6 +657,7 @@ function normalizeDetections(
         typeof item.aligns_with_column === "boolean"
           ? item.aligns_with_column
           : undefined,
+      segment: readSegment(item),
       isAiGenerated: Boolean(item.is_ai_generated),
     };
   });
@@ -425,6 +686,38 @@ function normalizeArchitecturalAudit(raw: unknown): ArchitecturalAudit | null {
   const westWins = Array.isArray(solar.west_facing_living_windows)
     ? solar.west_facing_living_windows
     : [];
+
+  const parseRoomItems = (items: unknown): RoomComplianceItem[] => {
+    if (!Array.isArray(items)) return [];
+    return items.map((room: Record<string, unknown>, i: number) => ({
+      roomId: String(room.room_id ?? `ROOM-${i + 1}`),
+      areaSqM: Number(room.area_sq_m ?? 0),
+      areaSqFt: Number(room.area_sq_ft ?? 0),
+      windowToFloorRatio: Number(room.window_to_floor_ratio ?? 0),
+      lightingStatus:
+        String(room.lighting_status ?? "WARNING").toUpperCase() === "PASSED"
+          ? ("PASSED" as const)
+          : ("WARNING" as const),
+      codeStatus:
+        String(room.code_status ?? "WARNING").toUpperCase() === "PASSED"
+          ? ("PASSED" as const)
+          : ("WARNING" as const),
+      minDimensionM: Number(room.min_dimension_m ?? 0),
+      openingIds: Array.isArray(room.opening_ids)
+        ? room.opening_ids.map(String)
+        : [],
+      recommendation: room.recommendation ? String(room.recommendation) : null,
+    }));
+  };
+
+  const roomComplianceRaw = data.room_compliance as Record<string, unknown> | undefined;
+  const lightingRaw = data.lighting_ventilation as Record<string, unknown> | undefined;
+  const structuralRaw = data.structural_grid as Record<string, unknown> | undefined;
+
+  const complianceRooms = parseRoomItems(roomComplianceRaw?.rooms ?? lightingRaw?.rooms);
+
+  const parseComplianceStatus = (v: unknown): ComplianceStatus =>
+    String(v ?? "WARNING").toUpperCase() === "PASSED" ? "PASSED" : "WARNING";
 
   return {
     wallClassifications: {
@@ -478,6 +771,82 @@ function normalizeArchitecturalAudit(raw: unknown): ArchitecturalAudit | null {
         })
       ),
     },
+    roomCompliance: roomComplianceRaw
+      ? {
+          status: parseComplianceStatus(roomComplianceRaw.status),
+          lightingStatus: parseComplianceStatus(roomComplianceRaw.lighting_status),
+          codeStatus: parseComplianceStatus(roomComplianceRaw.code_status),
+          lightingSummary: roomComplianceRaw.lighting_summary
+            ? String(roomComplianceRaw.lighting_summary)
+            : undefined,
+          codeSummary: roomComplianceRaw.code_summary
+            ? String(roomComplianceRaw.code_summary)
+            : undefined,
+          summary: roomComplianceRaw.summary
+            ? String(roomComplianceRaw.summary)
+            : undefined,
+          rooms: complianceRooms,
+        }
+      : undefined,
+    lightingVentilation: lightingRaw
+      ? {
+          status: parseComplianceStatus(lightingRaw.status),
+          summary: lightingRaw.summary ? String(lightingRaw.summary) : undefined,
+          minWindowToFloorRatio: Number(lightingRaw.min_window_to_floor_ratio ?? 0.1),
+          rooms: parseRoomItems(lightingRaw.rooms),
+        }
+      : undefined,
+    structuralGrid: structuralRaw
+      ? {
+          status:
+            String(structuralRaw.status ?? "CLASH_FREE").toUpperCase() === "CLASH_FREE"
+              ? ("CLASH_FREE" as const)
+              : ("REVIEW_REQUIRED" as const),
+          synthesisMode: String(structuralRaw.synthesis_mode ?? "AI-GSL"),
+          columnCount: Number(structuralRaw.column_count ?? 0),
+          clashFree: Boolean(structuralRaw.clash_free),
+          clashesCount: Number(structuralRaw.clashes_count ?? 0),
+          summary: structuralRaw.summary ? String(structuralRaw.summary) : undefined,
+          recommendation: structuralRaw.recommendation
+            ? String(structuralRaw.recommendation)
+            : null,
+        }
+      : undefined,
+  };
+}
+
+function normalizeOpeningScheduleItem(raw: unknown): OpeningScheduleItem | null {
+  if (!raw || typeof raw !== "object") return null;
+  const item = raw as Record<string, unknown>;
+  const id = String(item.id ?? "");
+  if (!id) return null;
+  return {
+    id,
+    name: String(item.name ?? id),
+    size: String(item.size ?? "—"),
+    type: String(item.type ?? "—"),
+  };
+}
+
+function normalizeOpeningsSchedule(raw: unknown): OpeningsSchedule | null {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as Record<string, unknown>;
+  const doorsList = Array.isArray(data.doors_list)
+    ? data.doors_list
+        .map(normalizeOpeningScheduleItem)
+        .filter((item): item is OpeningScheduleItem => item !== null)
+    : [];
+  const windowsList = Array.isArray(data.windows_list)
+    ? data.windows_list
+        .map(normalizeOpeningScheduleItem)
+        .filter((item): item is OpeningScheduleItem => item !== null)
+    : [];
+
+  return {
+    totalDoors: Number(data.total_doors ?? doorsList.length),
+    totalWindows: Number(data.total_windows ?? windowsList.length),
+    doorsList,
+    windowsList,
   };
 }
 
@@ -750,28 +1119,68 @@ export async function runClashDetection(
 
     const clashes = normalizeClashes(payload.clashes);
     const fromApi = normalizeRecommendations(payload.recommendations);
+    const hasLivePayload = Boolean(
+      (Array.isArray(payload.walls) && payload.walls.length > 0) ||
+        (Array.isArray(payload.detections) && payload.detections.length > 0) ||
+        (Array.isArray(payload.architectural_detections) &&
+          payload.architectural_detections.length > 0)
+    );
     const recommendations =
       fromApi.length > 0
         ? fromApi
-        : buildGcrRecommendations(clashes.length ? clashes : DEFAULT_CLASHES);
+        : hasLivePayload
+          ? buildGcrRecommendations(clashes)
+          : buildGcrRecommendations(clashes.length ? clashes : DEFAULT_CLASHES);
 
     const architecturalAudit =
       normalizeArchitecturalAudit(payload.architectural_audit) ??
       DEFAULT_ARCHITECTURAL_AUDIT;
+    const openingsSchedule = normalizeOpeningsSchedule(payload.openings_schedule);
+
+    const meta = (payload.meta ?? {}) as Record<string, unknown>;
+    const imageWidth = Number(
+      payload.image_width ?? meta.image_width ?? meta.canvas_width ?? 1024
+    );
+    const imageHeight = Number(
+      payload.image_height ?? meta.image_height ?? meta.canvas_height ?? 1024
+    );
+    const imgW = Number.isFinite(imageWidth) ? imageWidth : 1024;
+    const imgH = Number.isFinite(imageHeight) ? imageHeight : 1024;
+
+    const archOut =
+      architecturalDetections.length > 0
+        ? architecturalDetections
+        : detections.filter((d) => d.kind === "opening");
+    const structOut =
+      structuralDetections.length > 0
+        ? structuralDetections
+        : detections.filter((d) => d.kind === "column");
+    const walls = normalizeWallSegments(payload.walls, wallDetections, imgW, imgH);
+    const houseBounds =
+      normalizeHouseBounds(payload.house_bounds ?? meta.house_bounds) ??
+      houseBoundsFromWalls(walls);
+
+    const blueprint3d: Blueprint3DPayload = {
+      image_width: imgW,
+      image_height: imgH,
+      walls,
+      architectural_detections: archOut,
+      structural_detections: structOut,
+      house_bounds: houseBounds,
+      openings_schedule: openingsSchedule,
+    };
 
     return {
-      architecturalDetections:
-        architecturalDetections.length > 0
-          ? architecturalDetections
-          : detections.filter((d) => d.kind === "opening"),
-      structuralDetections:
-        structuralDetections.length > 0
-          ? structuralDetections
-          : detections.filter((d) => d.kind === "column"),
-      detections: detections.length ? detections : DEFAULT_DETECTIONS,
-      clashes: clashes.length ? clashes : DEFAULT_CLASHES,
+      architecturalDetections: archOut,
+      structuralDetections: structOut,
+      walls,
+      blueprint3d,
+      // Never substitute demo detections for a live analysis payload.
+      detections,
+      clashes: clashes.length ? clashes : hasLivePayload ? [] : DEFAULT_CLASHES,
       recommendations,
       architecturalAudit,
+      openingsSchedule,
       model:
         typeof payload.model === "string"
           ? payload.model
@@ -781,8 +1190,10 @@ export async function runClashDetection(
       elementsDetected:
         typeof payload.elements_detected === "number"
           ? payload.elements_detected
-          : detections.length || DEFAULT_DETECTIONS.length,
+          : detections.length,
       isAiGenerated,
+      imageWidth: imgW,
+      imageHeight: imgH,
     };
   } catch (error) {
     throw new Error(

@@ -19,6 +19,8 @@ ezdxf>=1.3.0
 certifi>=2024.8.30
 requests>=2.32.0
 shapely>=2.0.6
+# Optional: enables D1/W1 tag OCR on hand-drawn plans. Requires the Tesseract
+# binary at runtime; the symbol detector falls back to circle/gap detection.
 pytesseract>=0.3.13
 Pillow>=10.4.0
 earthengine-api>=1.1.0

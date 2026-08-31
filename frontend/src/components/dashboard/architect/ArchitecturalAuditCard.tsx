@@ -101,7 +101,7 @@ export function ArchitecturalAuditCard({
                 ))}
                 {walls.items.length === 0 && (
                   <li className="text-[11px] text-slate-400">
-                    No walls classified yet — run dual-plan analysis.
+                    No walls classified yet — run blueprint analysis.
                   </li>
                 )}
               </ul>

@@ -28,6 +28,17 @@ class DetectionOut(BaseModel):
     wall_type: Optional[Literal["LOAD_BEARING", "PARTITION"]] = None
     thickness_m: Optional[float] = None
     aligns_with_column: Optional[bool] = None
+    orientation: Optional[str] = Field(
+        None, description="'horizontal' | 'vertical' (AABB long axis)"
+    )
+    x1: Optional[float] = Field(
+        None, description="Wall centreline start X on the registered canvas"
+    )
+    y1: Optional[float] = Field(
+        None, description="Wall centreline start Y (origin top-left, Y-down)"
+    )
+    x2: Optional[float] = Field(None, description="Wall centreline end X")
+    y2: Optional[float] = Field(None, description="Wall centreline end Y")
     is_ai_generated: Optional[bool] = Field(
         False,
         description="True when column was synthesized by the AI-GSL engine",
@@ -75,14 +86,70 @@ class SolarGainOut(BaseModel):
     summary: Optional[str] = None
 
 
+class RoomComplianceItemOut(BaseModel):
+    room_id: str
+    area_sq_m: float = 0.0
+    area_sq_ft: float = 0.0
+    window_to_floor_ratio: float = 0.0
+    lighting_status: Literal["PASSED", "WARNING"] = "WARNING"
+    code_status: Literal["PASSED", "WARNING"] = "WARNING"
+    min_dimension_m: float = 0.0
+    opening_ids: List[str] = Field(default_factory=list)
+    recommendation: Optional[str] = None
+
+
+class RoomComplianceOut(BaseModel):
+    status: Literal["PASSED", "WARNING"] = "WARNING"
+    lighting_status: Literal["PASSED", "WARNING"] = "WARNING"
+    code_status: Literal["PASSED", "WARNING"] = "WARNING"
+    lighting_summary: Optional[str] = None
+    code_summary: Optional[str] = None
+    summary: Optional[str] = None
+    rooms: List[RoomComplianceItemOut] = Field(default_factory=list)
+
+
+class LightingVentilationOut(BaseModel):
+    status: Literal["PASSED", "WARNING"] = "WARNING"
+    summary: Optional[str] = None
+    min_window_to_floor_ratio: float = 0.10
+    rooms: List[RoomComplianceItemOut] = Field(default_factory=list)
+
+
+class StructuralGridOut(BaseModel):
+    status: Literal["CLASH_FREE", "REVIEW_REQUIRED"] = "CLASH_FREE"
+    synthesis_mode: str = "AI-GSL"
+    column_count: int = 0
+    clash_free: bool = True
+    clashes_count: int = 0
+    summary: Optional[str] = None
+    recommendation: Optional[str] = None
+
+
+class OpeningScheduleItemOut(BaseModel):
+    id: str
+    name: str
+    size: str
+    type: str
+
+
+class OpeningsScheduleOut(BaseModel):
+    total_doors: int = 0
+    total_windows: int = 0
+    doors_list: List[OpeningScheduleItemOut] = Field(default_factory=list)
+    windows_list: List[OpeningScheduleItemOut] = Field(default_factory=list)
+
+
 class ArchitecturalAuditOut(BaseModel):
-    """Passive design + structural integrity audit bundle."""
+    """Passive design + code compliance + structural synthesis audit bundle."""
 
     wall_classifications: WallClassificationsOut = Field(
         default_factory=WallClassificationsOut
     )
     cross_ventilation: CrossVentilationOut
     solar_gain: SolarGainOut
+    room_compliance: Optional[RoomComplianceOut] = None
+    lighting_ventilation: Optional[LightingVentilationOut] = None
+    structural_grid: Optional[StructuralGridOut] = None
 
 
 
@@ -143,6 +210,34 @@ class GcrRecommendationOut(BaseModel):
     )
 
 
+class HouseCutoutOut(BaseModel):
+    """Concave inset (car porch / veranda) in pixel coordinates."""
+
+    min_x: float
+    min_y: float
+    max_x: float
+    max_y: float
+    corner: str = "se"
+
+
+class HouseBoundsOut(BaseModel):
+    """
+    True pixel footprint of the building after the drawing-sheet frame is
+    filtered out. The 3D viewport centres and scales on this box so walls,
+    doors and windows share one aligned origin.
+    """
+
+    min_x: float
+    min_y: float
+    max_x: float
+    max_y: float
+    center_x: float
+    center_y: float
+    width: float
+    height: float
+    cutout: Optional[HouseCutoutOut] = None
+
+
 class ClashMeta(BaseModel):
     openings_count: int
     columns_count: int
@@ -153,6 +248,9 @@ class ClashMeta(BaseModel):
     registration: Optional[str] = None
     walls_count: Optional[int] = None
     generative_structural_layout: Optional[bool] = None
+    image_width: Optional[int] = None
+    image_height: Optional[int] = None
+    house_bounds: Optional[HouseBoundsOut] = None
 
 
 class ClashDetectionResult(BaseModel):
@@ -163,12 +261,20 @@ class ClashDetectionResult(BaseModel):
     the existing Next.js canvas normalizer.
     """
 
+    image_width: int = Field(
+        1024, description="Registered blueprint canvas width in pixels"
+    )
+    image_height: int = Field(
+        1024, description="Registered blueprint canvas height in pixels"
+    )
     architectural_detections: List[DetectionOut] = Field(default_factory=list)
     structural_detections: List[DetectionOut] = Field(default_factory=list)
     walls: List[DetectionOut] = Field(default_factory=list)
+    house_bounds: Optional[HouseBoundsOut] = None
     clashes: List[ClashOut]
     recommendations: List[GcrRecommendationOut] = Field(default_factory=list)
     architectural_audit: Optional[ArchitecturalAuditOut] = None
+    openings_schedule: Optional[OpeningsScheduleOut] = None
     detections: List[DetectionOut] = Field(
         default_factory=list,
         description="Combined arch + struct + wall detections (frontend alias)",
