@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { Eye, Footprints, Moon, Sun, X } from "lucide-react";
 import type { DetectionBox } from "@/lib/clash-detection";
 import {
@@ -15,6 +16,7 @@ import {
   findCornerCutout,
   gapSpans,
   mergeSpans,
+  runAxis,
   runLength,
   trimRunsAgainstCutout,
   type CornerCutout,
@@ -137,12 +139,25 @@ const OPENING_CUT_PAD = 0.09;
 const OPENING_NMS_PX = 40;
 const OPENING_NMS_M = 0.8;
 
+/** Architectural dimension line height above the floor slab. */
+const DIM_LINE_Y = 0.12;
+const DIM_OFFSET_M = 0.42;
+const DIM_TICK_M = 0.08;
+/** Only dimension walls longer than this (metres). */
+const MIN_DIMENSION_WALL_M = 1.75;
+const MIN_ROOM_AREA_SQ_M = 3.5;
+const MIN_ROOM_CELL_M = 0.85;
+
 // ---------------------------------------------------------------------------
 // Lifecycle helpers
 // ---------------------------------------------------------------------------
 
 function disposeObject3D(root: THREE.Object3D) {
   root.traverse((obj) => {
+    if (obj instanceof CSS2DObject) {
+      obj.element.remove();
+      return;
+    }
     if (obj instanceof THREE.Mesh) {
       obj.geometry?.dispose();
       const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
@@ -1167,8 +1182,277 @@ function detectionWorldSize(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Architectural dimensioning & room measurement
+// ---------------------------------------------------------------------------
+
+type HouseBuildResult = {
+  roofGroup: THREE.Group;
+  dimensionsGroup: THREE.Group;
+};
+
+type InferredRoom = {
+  name: string;
+  cx: number;
+  cz: number;
+  areaSqM: number;
+  areaSqFt: number;
+};
+
+function metersToFeetInches(lengthM: number): string {
+  const totalInches = lengthM * 3.28084 * 12;
+  const feet = Math.floor(totalInches / 12);
+  const inches = Math.round(totalInches % 12);
+  return `${feet}'${inches}"`;
+}
+
+function formatDimensionLabel(lengthM: number): string {
+  return `${lengthM.toFixed(2)}m (${metersToFeetInches(lengthM)})`;
+}
+
+function createCssLabel(
+  text: string,
+  className: string,
+  y = DIM_LINE_Y + 0.35
+): CSS2DObject {
+  const el = document.createElement("div");
+  el.className = className;
+  el.textContent = text;
+  const label = new CSS2DObject(el);
+  label.position.set(0, y, 0);
+  return label;
+}
+
+function wallOutwardNormal(
+  run: WallRun,
+  runs: WallRun[],
+  bounds: WallBounds
+): { x: number; z: number } {
+  const axis = runAxis(run);
+  const len = runLength(run);
+  const along = axis === "x" ? (run.sx + run.ex) / 2 : (run.sz + run.ez) / 2;
+  const from = axis === "x" ? run.sz : run.sx;
+
+  const countBlockers = (dir: 1 | -1): number => {
+    let count = 0;
+    for (const r of runs) {
+      if (r === run || runAxis(r) !== axis) continue;
+      const line = axis === "x" ? r.sz : r.sx;
+      const delta = (line - from) * dir;
+      if (delta <= 0.02) continue;
+      const limit = axis === "x" ? bounds.maxZ - from : bounds.maxX - from;
+      if (dir > 0 && delta > limit) continue;
+      const lo = axis === "x" ? Math.min(r.sx, r.ex) : Math.min(r.sz, r.ez);
+      const hi = axis === "x" ? Math.max(r.sx, r.ex) : Math.max(r.sz, r.ez);
+      if (along < lo + 0.02 || along > hi - 0.02) continue;
+      count++;
+    }
+    return count;
+  };
+
+  if (axis === "x") {
+    if (countBlockers(1) <= countBlockers(-1)) return { x: 0, z: 1 };
+    return { x: 0, z: -1 };
+  }
+  if (countBlockers(1) <= countBlockers(-1)) return { x: 1, z: 0 };
+  return { x: -1, z: 0 };
+}
+
+function roomNameForArea(areaSqFt: number, index: number): string {
+  if (areaSqFt >= 200) return "Living Room";
+  if (areaSqFt >= 140) return index % 2 === 0 ? "Bedroom 1" : "Bedroom 2";
+  if (areaSqFt >= 100) return "Dining";
+  if (areaSqFt >= 70) return "Bedroom";
+  if (areaSqFt >= 45) return "Bathroom";
+  return `Room ${index}`;
+}
+
+function inferRoomsFromRuns(
+  runs: WallRun[],
+  cutout: CornerCutout | null
+): InferredRoom[] {
+  const xs = [...new Set(runs.flatMap((r) => [r.sx, r.ex]))].sort((a, b) => a - b);
+  const zs = [...new Set(runs.flatMap((r) => [r.sz, r.ez]))].sort((a, b) => a - b);
+  const rooms: InferredRoom[] = [];
+  let roomIndex = 1;
+
+  for (let i = 0; i < xs.length - 1; i++) {
+    for (let j = 0; j < zs.length - 1; j++) {
+      const x0 = xs[i];
+      const x1 = xs[i + 1];
+      const z0 = zs[j];
+      const z1 = zs[j + 1];
+      const width = x1 - x0;
+      const depth = z1 - z0;
+      if (width < MIN_ROOM_CELL_M || depth < MIN_ROOM_CELL_M) continue;
+
+      const areaSqM = width * depth;
+      if (areaSqM < MIN_ROOM_AREA_SQ_M) continue;
+
+      const cx = (x0 + x1) / 2;
+      const cz = (z0 + z1) / 2;
+
+      if (
+        cutout &&
+        cx > cutout.minX &&
+        cx < cutout.maxX &&
+        cz > cutout.minZ &&
+        cz < cutout.maxZ
+      ) {
+        continue;
+      }
+
+      let enclosed = 0;
+      const edges: Array<["north" | "south" | "west" | "east", number, number]> = [
+        ["north", x0, x1],
+        ["south", x0, x1],
+        ["west", z0, z1],
+        ["east", z0, z1],
+      ];
+      for (const [edge, lo, hi] of edges) {
+        const fixed =
+          edge === "north"
+            ? z0
+            : edge === "south"
+              ? z1
+              : edge === "west"
+                ? x0
+                : x1;
+        const covered = runs.some((r) => {
+          if (edge === "north" || edge === "south") {
+            if (runAxis(r) !== "x") return false;
+            if (Math.abs(r.sz - fixed) > 0.28) return false;
+            const rLo = Math.min(r.sx, r.ex);
+            const rHi = Math.max(r.sx, r.ex);
+            return rLo <= lo + 0.28 && rHi >= hi - 0.28;
+          }
+          if (runAxis(r) !== "z") return false;
+          if (Math.abs(r.sx - fixed) > 0.28) return false;
+          const rLo = Math.min(r.sz, r.ez);
+          const rHi = Math.max(r.sz, r.ez);
+          return rLo <= lo + 0.28 && rHi >= hi - 0.28;
+        });
+        if (covered) enclosed++;
+      }
+      if (enclosed < 3) continue;
+
+      const areaSqFt = areaSqM * 10.7639;
+      rooms.push({
+        name: roomNameForArea(areaSqFt, roomIndex),
+        cx,
+        cz,
+        areaSqM,
+        areaSqFt: Math.round(areaSqFt),
+      });
+      roomIndex++;
+    }
+  }
+
+  return rooms
+    .sort((a, b) => b.areaSqM - a.areaSqM)
+    .filter(
+      (room, idx, arr) =>
+        !arr
+          .slice(0, idx)
+          .some((other) => Math.hypot(other.cx - room.cx, other.cz - room.cz) < 1.2)
+    );
+}
+
+function addWallDimensionLine(
+  group: THREE.Group,
+  run: WallRun,
+  outward: { x: number; z: number },
+  lineMat: THREE.LineBasicMaterial,
+  tickMat: THREE.LineBasicMaterial
+) {
+  const len = runLength(run);
+  if (len < MIN_DIMENSION_WALL_M) return;
+
+  const ox = outward.x * DIM_OFFSET_M;
+  const oz = outward.z * DIM_OFFSET_M;
+  const y = DIM_LINE_Y;
+
+  const sx = run.sx + ox;
+  const sz = run.sz + oz;
+  const ex = run.ex + ox;
+  const ez = run.ez + oz;
+
+  const mainGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(sx, y, sz),
+    new THREE.Vector3(ex, y, ez),
+  ]);
+  group.add(new THREE.Line(mainGeo, lineMat));
+
+  const axis = runAxis(run);
+  const tickDx = axis === "x" ? 0 : DIM_TICK_M;
+  const tickDz = axis === "x" ? DIM_TICK_M : 0;
+
+  for (const [px, pz] of [
+    [sx, sz],
+    [ex, ez],
+  ] as const) {
+    const tickGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(px - tickDx / 2, y, pz - tickDz / 2),
+      new THREE.Vector3(px + tickDx / 2, y, pz + tickDz / 2),
+    ]);
+    group.add(new THREE.Line(tickGeo, tickMat));
+  }
+
+  const label = createCssLabel(
+    formatDimensionLabel(len),
+    "pointer-events-none select-none whitespace-nowrap rounded-md border border-slate-700/80 bg-white/95 px-2 py-0.5 text-[10px] font-semibold tracking-tight text-slate-800 shadow-md"
+  );
+  label.position.set((sx + ex) / 2, y, (sz + ez) / 2);
+  group.add(label);
+}
+
+function buildDimensionOverlay(
+  runs: WallRun[],
+  exterior: Set<number>,
+  cutout: CornerCutout | null
+): THREE.Group {
+  const group = new THREE.Group();
+  group.name = "dimension-overlay";
+
+  const bounds = boundsFromRuns(runs);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 1 });
+  const tickMat = new THREE.LineBasicMaterial({ color: 0x0f172a });
+
+  const dimensioned = new Set<string>();
+
+  runs.forEach((run, index) => {
+    const len = runLength(run);
+    const isExterior = exterior.has(index);
+    if (!isExterior && len < MIN_DIMENSION_WALL_M) return;
+
+    const axis = runAxis(run);
+    const perp = axis === "x" ? run.sz : run.sx;
+    const lo = axis === "x" ? Math.min(run.sx, run.ex) : Math.min(run.sz, run.ez);
+    const hi = axis === "x" ? Math.max(run.sx, run.ex) : Math.max(run.sz, run.ez);
+    const key = `${axis}:${Math.round(perp * 20)}:${Math.round(lo * 10)}:${Math.round(hi * 10)}`;
+    if (dimensioned.has(key)) return;
+    dimensioned.add(key);
+
+    const outward = wallOutwardNormal(run, runs, bounds);
+    addWallDimensionLine(group, run, outward, lineMat, tickMat);
+  });
+
+  const rooms = inferRoomsFromRuns(runs, cutout);
+  for (const room of rooms) {
+    const badge = createCssLabel(
+      `${room.name}: ${room.areaSqFt} sq.ft`,
+      "pointer-events-none select-none whitespace-nowrap rounded-full border border-[#D4AF37]/60 bg-slate-900/88 px-3 py-1 text-[11px] font-medium text-white shadow-lg backdrop-blur-sm",
+      1.55
+    );
+    badge.position.set(room.cx, 1.55, room.cz);
+    group.add(badge);
+  }
+
+  return group;
+}
+
 /** Blueprint-driven house from walls / openings / columns. */
-function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): THREE.Group {
+function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuildResult {
   const imgW = data.image_width || 1024;
   const imgH = data.image_height || 1024;
   // Centre on the walls we are about to render so the geometry lands on the
@@ -1196,8 +1480,7 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): THREE.Grou
   let runs = buildOrthogonalLayout(candidateRuns, scale);
 
   if (runs.length === 0) {
-    // Never invent a hardcoded house — callers must show an empty state instead.
-    return new THREE.Group();
+    return { roofGroup: new THREE.Group(), dimensionsGroup: new THREE.Group() };
   }
 
   // 3) Open the car porch: prefer the ink-flood cutout from the backend so
@@ -1345,7 +1628,9 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): THREE.Grou
     ctx.group.add(col);
   }
 
-  return addDynamicRoofAndSlab(ctx, closedBounds, cutout);
+  const dimensionsGroup = buildDimensionOverlay(runs, exterior, cutout);
+  const roofGroup = addDynamicRoofAndSlab(ctx, closedBounds, cutout);
+  return { roofGroup, dimensionsGroup };
 }
 
 // ---------------------------------------------------------------------------
@@ -1363,6 +1648,8 @@ export function FloorPlan3DViewport({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const roofGroupRef = useRef<THREE.Group | null>(null);
+  const dimensionsGroupRef = useRef<THREE.Group | null>(null);
+  const labelRendererRef = useRef<CSS2DRenderer | null>(null);
   const houseGroupRef = useRef<THREE.Group | null>(null);
   const materialsRef = useRef<HouseMaterials | null>(null);
   const envGroupRef = useRef<THREE.Group | null>(null);
@@ -1372,6 +1659,7 @@ export function FloorPlan3DViewport({
 
   const [isNightMode, setIsNightMode] = useState(false);
   const [showRoof, setShowRoof] = useState(false);
+  const [showDimensions, setShowDimensions] = useState(true);
   const [isWalkthrough, setIsWalkthrough] = useState(false);
 
   const blueprintData = useMemo(
@@ -1414,6 +1702,15 @@ export function FloorPlan3DViewport({
       console.error("WebGL initialization failed:", err);
       return;
     }
+
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(width, height);
+    labelRenderer.domElement.style.position = "absolute";
+    labelRenderer.domElement.style.top = "0";
+    labelRenderer.domElement.style.left = "0";
+    labelRenderer.domElement.style.pointerEvents = "none";
+    container.appendChild(labelRenderer.domElement);
+    labelRendererRef.current = labelRenderer;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -1496,13 +1793,18 @@ export function FloorPlan3DViewport({
 
     // Only build geometry from live blueprint walls — never the static demo house.
     if (hasRealWalls && blueprintData) {
-      roofGroupRef.current = buildDynamicHouse(buildCtx, blueprintData);
-      if (roofGroupRef.current) {
-        roofGroupRef.current.visible = showRoof;
+      const built = buildDynamicHouse(buildCtx, blueprintData);
+      roofGroupRef.current = built.roofGroup;
+      dimensionsGroupRef.current = built.dimensionsGroup;
+      dimensionsGroupRef.current.visible = showDimensions;
+      if (built.roofGroup) {
+        built.roofGroup.visible = showRoof;
       }
+      houseGroup.add(built.dimensionsGroup);
       scene.add(houseGroup);
     } else {
       roofGroupRef.current = null;
+      dimensionsGroupRef.current = null;
     }
 
     const clock = new THREE.Clock();
@@ -1536,6 +1838,7 @@ export function FloorPlan3DViewport({
       }
 
       renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
     };
     animate();
 
@@ -1546,6 +1849,7 @@ export function FloorPlan3DViewport({
       cameraRef.current.aspect = w / h;
       cameraRef.current.updateProjectionMatrix();
       rendererRef.current.setSize(w, h);
+      labelRendererRef.current?.setSize(w, h);
     };
     window.addEventListener("resize", onResize);
 
@@ -1563,10 +1867,15 @@ export function FloorPlan3DViewport({
       if (renderer.domElement.parentNode === container) {
         container.removeChild(renderer.domElement);
       }
+      if (labelRenderer.domElement.parentNode === container) {
+        container.removeChild(labelRenderer.domElement);
+      }
       rendererRef.current = null;
+      labelRendererRef.current = null;
       cameraRef.current = null;
       controlsRef.current = null;
       roofGroupRef.current = null;
+      dimensionsGroupRef.current = null;
       houseGroupRef.current = null;
       materialsRef.current = null;
       envGroupRef.current = null;
@@ -1578,6 +1887,10 @@ export function FloorPlan3DViewport({
   useEffect(() => {
     if (roofGroupRef.current) roofGroupRef.current.visible = showRoof;
   }, [showRoof]);
+
+  useEffect(() => {
+    if (dimensionsGroupRef.current) dimensionsGroupRef.current.visible = showDimensions;
+  }, [showDimensions]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1659,6 +1972,18 @@ export function FloorPlan3DViewport({
               <Moon className="h-3 w-3" /> Night
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowDimensions((v) => !v)}
+            className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold shadow-sm transition-all ${
+              showDimensions
+                ? "border-slate-700 bg-slate-800 font-bold text-white"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            {showDimensions ? "📏 Dimensions: ON" : "📏 Dimensions: OFF"}
+          </button>
 
           <button
             type="button"

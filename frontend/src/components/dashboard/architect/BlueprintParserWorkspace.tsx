@@ -6,6 +6,7 @@ import { ProjectPortfolioBar } from "@/components/dashboard/architect/ProjectPor
 import { ClashPlanUploadSection } from "@/components/dashboard/architect/ClashPlanUploadSection";
 import { BlueprintInspectionCanvas } from "@/components/dashboard/architect/BlueprintInspectionCanvas";
 import { FloorPlan3DViewport } from "@/components/dashboard/architect/FloorPlan3DViewport";
+import { AIConceptStudio } from "@/components/dashboard/architect/AIConceptStudio";
 import { useArchitectWorkspace } from "@/contexts/ArchitectWorkspaceContext";
 import { cn } from "@/lib/utils";
 
@@ -232,14 +233,28 @@ export function BlueprintParserWorkspace() {
               </button>
             </div>
           )}
-          <FloorPlan3DViewport
-            data={blueprint3dData}
-            detections={detections}
-            recommendations={recommendations}
-            architecturalAudit={architecturalAudit}
-            viewMode={maquetteMode}
-            hasLiveResult={hasLiveResult}
+          <AIConceptStudio
             projectName={activeProject?.name}
+            projectLocation={activeProject?.location_gps}
+            blueprintImageUrl={archPreviewUrl}
+            blueprint3d={blueprint3dData}
+            detections={detections}
+            architecturalAudit={architecturalAudit}
+            hasLiveResult={hasLiveResult}
+            wallCount={blueprint3dData?.walls?.length ?? 0}
+            elementsDetected={elementsDetected}
+            wallLengthFt={wallLengthFt}
+            bimViewport={
+              <FloorPlan3DViewport
+                data={blueprint3dData}
+                detections={detections}
+                recommendations={recommendations}
+                architecturalAudit={architecturalAudit}
+                viewMode={maquetteMode}
+                hasLiveResult={hasLiveResult}
+                projectName={activeProject?.name}
+              />
+            }
           />
         </div>
       )}
