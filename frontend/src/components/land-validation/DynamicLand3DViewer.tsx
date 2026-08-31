@@ -7,7 +7,7 @@ export const DynamicLand3DViewer = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[420px] w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-sm text-slate-400">
+      <div className="flex h-[440px] w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-sm text-slate-400 lg:h-[520px]">
         Loading 3D site model…
       </div>
     ),

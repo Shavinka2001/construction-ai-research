@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import type { LedgerReport } from "@/lib/land-validation";
+import { deriveInsights, deriveNextSteps } from "@/lib/feasibility-insights";
 
 const GOLD: [number, number, number] = [184, 148, 46];
 const INK: [number, number, number] = [15, 23, 42];
@@ -104,7 +105,43 @@ export function buildFeasibilityLedgerPdf(
       ? `${f.weather.temperature_2m ?? "—"}°C, ${f.weather.relative_humidity_2m ?? "—"}% RH, rainfall ${f.weather.rainfall_exposure}, UV ${f.weather.uv_index_max ?? "—"}`
       : "weather service unavailable"
   );
-  f.weather.advisories.forEach((a) => para(`• ${a}`));
+  if (f.weather.source === "open-meteo") {
+    f.weather.advisories.forEach((a) => para(`• ${a}`));
+  }
+
+  // --- Site insights (derived, deterministic) --------------------------
+  const insights = deriveInsights(f, ledger.boundary);
+  heading("Site Insights");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...INK);
+  ensure(14);
+  doc.text("Strengths", margin, y);
+  y += 12;
+  (insights.strengths.length
+    ? insights.strengths
+    : ["No standout advantages flagged by the analysis."]
+  ).forEach((s) => para(`+ ${s}`));
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...INK);
+  ensure(14);
+  doc.text("Risks / constraints", margin, y);
+  y += 12;
+  (insights.constraints.length
+    ? insights.constraints
+    : ["No material constraints identified for this site."]
+  ).forEach((s) => para(`- ${s}`));
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...INK);
+  ensure(14);
+  doc.text("Recommendations", margin, y);
+  y += 12;
+  insights.recommendations.forEach((s) => para(`• ${s}`));
+
+  heading("Recommended Next Steps");
+  deriveNextSteps(f, ledger.boundary).forEach((s, i) => para(`${i + 1}. ${s}`));
 
   // --- Module 4: boundary + zoning -----------------------------------
   heading("3 · Precision Boundary & Optimal Build Zone (UDA Gazette 2021)");

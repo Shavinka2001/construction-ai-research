@@ -123,11 +123,7 @@ function buildApprovalReportPdf(opts: {
     const x = colCursor;
     const textW = Math.max(12, c.width - colPad);
     const textX =
-      c.align === "center"
-        ? x + c.width / 2
-        : c.align === "right"
-          ? x + c.width - colPad / 2
-          : x + colPad / 2;
+      c.align === "center" ? x + c.width / 2 : x + colPad / 2;
     colCursor += c.width;
     return { ...c, x, textX, textW };
   });
