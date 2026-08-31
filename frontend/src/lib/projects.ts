@@ -1,5 +1,6 @@
 import axios, { AxiosError } from "axios";
 import { API_V1, type ApiResponse } from "@/lib/api";
+import { handleUnauthorized } from "@/lib/session-guard";
 
 export type Project = {
   id: number;
@@ -16,6 +17,12 @@ export type ProjectCreatePayload = {
   location_gps?: string | null;
 };
 
+export type ProjectUpdatePayload = {
+  name?: string;
+  description?: string | null;
+  location_gps?: string | null;
+};
+
 function authHeaders(token: string) {
   return {
     Authorization: `Bearer ${token}`,
@@ -26,6 +33,7 @@ function authHeaders(token: string) {
 function extractErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
     const ax = error as AxiosError<ApiResponse<unknown>>;
+    if (ax.response?.status === 401) handleUnauthorized();
     const body = ax.response?.data;
     if (body?.message) return body.message;
     if (body?.errors?.[0]?.message) return body.errors[0].message;
@@ -76,5 +84,47 @@ export async function createProject(
     return data.data;
   } catch (error) {
     throw new Error(extractErrorMessage(error, "Failed to create project"));
+  }
+}
+
+/** PATCH /api/v1/projects/{id} — update fields of a project the user owns. */
+export async function updateProject(
+  token: string,
+  projectId: number,
+  payload: ProjectUpdatePayload
+): Promise<Project> {
+  try {
+    const { data } = await axios.patch<ApiResponse<Project>>(
+      `${API_V1}/projects/${projectId}`,
+      payload,
+      { headers: authHeaders(token) }
+    );
+
+    if (!data.success || !data.data) {
+      throw new Error(data.message || "Failed to update project");
+    }
+
+    return data.data;
+  } catch (error) {
+    throw new Error(extractErrorMessage(error, "Failed to update project"));
+  }
+}
+
+/** DELETE /api/v1/projects/{id} — permanently delete a project and its reports. */
+export async function deleteProject(
+  token: string,
+  projectId: number
+): Promise<void> {
+  try {
+    const { data } = await axios.delete<ApiResponse<{ id: number }>>(
+      `${API_V1}/projects/${projectId}`,
+      { headers: authHeaders(token) }
+    );
+
+    if (!data.success) {
+      throw new Error(data.message || "Failed to delete project");
+    }
+  } catch (error) {
+    throw new Error(extractErrorMessage(error, "Failed to delete project"));
   }
 }

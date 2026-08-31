@@ -94,6 +94,29 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # --- Pre-Construction Feasibility Analyzer (R26_IT_154) -------------------
+    # Google Earth Engine — service-account key path (relative to backend/).
+    # When the key is absent the land analyzer falls back to deterministic
+    # synthetic terrain, so the API still boots and every endpoint responds.
+    GEE_KEY_PATH: str = "gee-key.json"
+    GEE_PROJECT: str = "landanalyzeraiproject"
+
+    # YOLOv8 land-boundary segmentation weights (relative to backend/).
+    # Fallback chain: fine-tuned .pt → yolov8n-seg.pt (auto-download) → OpenCV.
+    YOLO_SEG_WEIGHTS_PATH: str = "weights/land_segmentation.pt"
+    YOLO_SEG_FALLBACK: str = "yolov8n-seg.pt"
+
+    # OCR — optional explicit path to the Tesseract binary (Windows installs
+    # rarely add it to PATH). When unresolved, Module 2 returns UNVERIFIED.
+    TESSERACT_CMD: str | None = None
+
+    # External geospatial / weather services
+    NOMINATIM_URL: str = "https://nominatim.openstreetmap.org/search"
+    NOMINATIM_USER_AGENT: str = (
+        "R26-IT-154-feasibility-analyzer/1.0 (undergraduate research project)"
+    )
+    OPEN_METEO_URL: str = "https://api.open-meteo.com/v1/forecast"
+
 
 @lru_cache
 def get_settings() -> Settings:

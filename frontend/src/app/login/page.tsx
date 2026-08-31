@@ -45,6 +45,9 @@ function LoginForm() {
     if (searchParams.get("registered") === "true") {
       setSuccess(true);
     }
+    if (searchParams.get("session") === "expired") {
+      setError("Your session has expired. Please sign in again.");
+    }
   }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
