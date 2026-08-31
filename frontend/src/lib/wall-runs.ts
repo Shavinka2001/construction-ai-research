@@ -34,12 +34,16 @@ export type EdgeSpec = {
 
 /** Minimum wall run (metres) worth extruding — below this it's stroke noise. */
 export const MIN_WALL_RUN_M = 0.45;
-/** Runs within this angle of an axis snap to it; anything else is an artifact. */
-export const ORTHO_TOL_RAD = (15 * Math.PI) / 180;
+/** Strict residential grid: only 0° / 90° walls survive; diagonals are deleted. */
+export const ORTHO_TOL_RAD = (5 * Math.PI) / 180;
+/** Blueprint pixel tolerances mirrored into world metres at runtime. */
+export const PIXEL_CORNER_SNAP = 15;
+export const PIXEL_DOUBLE_WALL_MAX_GAP = 25;
+export const PIXEL_DOUBLE_WALL_MIN_GAP = 5;
 /** Parallel runs whose centrelines land this close share one grid line. */
-export const GRID_SNAP_M = 0.22;
+export const GRID_SNAP_M = 0.15;
 /** A run end this close to a perpendicular run's line is welded onto it. */
-export const CORNER_WELD_M = 0.6;
+export const CORNER_WELD_M = 0.35;
 /** How close a wall must be to a bounds edge to count as covering that side. */
 export const EDGE_COVER_TOL = 0.55;
 
@@ -114,41 +118,135 @@ export function nearestGridLine(value: number, lines: number[], tol: number): nu
   return best;
 }
 
+/** Convert blueprint pixel tolerances to world metres for the current plan scale. */
+export function snapTolerancesFromScale(scale: number) {
+  return {
+    gridSnap: Math.max(0.08, PIXEL_CORNER_SNAP * scale),
+    cornerWeld: Math.max(0.12, PIXEL_CORNER_SNAP * scale),
+    doubleWallMin: Math.max(0.06, PIXEL_DOUBLE_WALL_MIN_GAP * scale),
+    doubleWallMax: Math.max(0.18, PIXEL_DOUBLE_WALL_MAX_GAP * scale),
+    fuseCollinear: Math.max(0.05, 6 * scale),
+  };
+}
+
+function runSpan(run: WallRun, axis: Axis): { lo: number; hi: number; perp: number } {
+  if (axis === "x") {
+    return {
+      lo: Math.min(run.sx, run.ex),
+      hi: Math.max(run.sx, run.ex),
+      perp: (run.sz + run.ez) / 2,
+    };
+  }
+  return {
+    lo: Math.min(run.sz, run.ez),
+    hi: Math.max(run.sz, run.ez),
+    perp: (run.sx + run.ex) / 2,
+  };
+}
+
+/**
+ * Merge parallel inner/outer CAD face lines into a single centreline.
+ *
+ * Two strokes spaced within the double-wall band become one run at the midpoint
+ * so the 3D viewport never extrudes overlapping slabs for a single wall.
+ */
+export function mergeDoubleWallRuns(
+  runs: WallRun[],
+  minGap: number,
+  maxGap: number,
+  minOverlap = 0.35
+): WallRun[] {
+  if (runs.length < 2) return runs;
+
+  const buckets: Record<Axis, WallRun[]> = { x: [], z: [] };
+  for (const run of runs) {
+    buckets[runAxis(run)].push(run);
+  }
+
+  const used = new Set<WallRun>();
+  const merged: WallRun[] = [];
+
+  for (const axis of ["x", "z"] as const) {
+    for (const seed of buckets[axis]) {
+      if (used.has(seed)) continue;
+      const cluster = [seed];
+      used.add(seed);
+      let { lo, hi } = runSpan(seed, axis);
+      const perps = [runSpan(seed, axis).perp];
+
+      let expanded = true;
+      while (expanded) {
+        expanded = false;
+        for (const other of buckets[axis]) {
+          if (used.has(other)) continue;
+          const span = runSpan(other, axis);
+          const overlap = Math.min(hi, span.hi) - Math.max(lo, span.lo);
+          if (overlap < minOverlap) continue;
+          const minPerpGap = Math.min(...perps.map((p) => Math.abs(span.perp - p)));
+          if (minPerpGap >= minGap && minPerpGap <= maxGap) {
+            cluster.push(other);
+            used.add(other);
+            perps.push(span.perp);
+            lo = Math.min(lo, span.lo);
+            hi = Math.max(hi, span.hi);
+            expanded = true;
+          }
+        }
+      }
+
+      if (cluster.length === 1) {
+        merged.push(seed);
+        continue;
+      }
+
+      const perp = perps.reduce((a, b) => a + b, 0) / perps.length;
+      const depth = Math.max(...cluster.map((r) => r.depth));
+      merged.push(
+        axis === "x"
+          ? { sx: lo, ex: hi, sz: perp, ez: perp, depth }
+          : { sx: perp, ex: perp, sz: lo, ez: hi, depth }
+      );
+    }
+  }
+
+  return merged;
+}
+
 /**
  * Pull parallel runs onto shared grid lines.
  *
  * Separate extraction passes measure the same wall a few centimetres apart, so
  * nominally collinear walls are slightly offset and their corners never meet.
  */
-export function alignRunsToGrid(runs: WallRun[]): WallRun[] {
+export function alignRunsToGrid(runs: WallRun[], gridSnap = GRID_SNAP_M): WallRun[] {
   const xLines = buildGridLines(
     runs.filter((r) => runAxis(r) === "z").map((r) => r.sx),
-    GRID_SNAP_M
+    gridSnap
   );
   const zLines = buildGridLines(
     runs.filter((r) => runAxis(r) === "x").map((r) => r.sz),
-    GRID_SNAP_M
+    gridSnap
   );
 
   return runs
     .map((run) => {
       if (runAxis(run) === "x") {
-        const z = nearestGridLine(run.sz, zLines, GRID_SNAP_M);
+        const z = nearestGridLine(run.sz, zLines, gridSnap);
         return {
           ...run,
           sz: z,
           ez: z,
-          sx: nearestGridLine(run.sx, xLines, GRID_SNAP_M),
-          ex: nearestGridLine(run.ex, xLines, GRID_SNAP_M),
+          sx: nearestGridLine(run.sx, xLines, gridSnap),
+          ex: nearestGridLine(run.ex, xLines, gridSnap),
         };
       }
-      const x = nearestGridLine(run.sx, xLines, GRID_SNAP_M);
+      const x = nearestGridLine(run.sx, xLines, gridSnap);
       return {
         ...run,
         sx: x,
         ex: x,
-        sz: nearestGridLine(run.sz, zLines, GRID_SNAP_M),
-        ez: nearestGridLine(run.ez, zLines, GRID_SNAP_M),
+        sz: nearestGridLine(run.sz, zLines, gridSnap),
+        ez: nearestGridLine(run.ez, zLines, gridSnap),
       };
     })
     .filter((r) => runLength(r) >= MIN_WALL_RUN_M);
@@ -160,7 +258,7 @@ export function alignRunsToGrid(runs: WallRun[]): WallRun[] {
  * Extraction stops a wall short wherever the ink thins out, which reads as an
  * open gap in the exterior boundary or a detached floating slab.
  */
-export function weldRunCorners(runs: WallRun[]): WallRun[] {
+export function weldRunCorners(runs: WallRun[], cornerWeld = CORNER_WELD_M): WallRun[] {
   const verticals = runs.filter((r) => runAxis(r) === "z");
   const horizontals = runs.filter((r) => runAxis(r) === "x");
 
@@ -171,13 +269,12 @@ export function weldRunCorners(runs: WallRun[]): WallRun[] {
     axis: Axis
   ): number => {
     let best = value;
-    let bestGap = CORNER_WELD_M;
+    let bestGap = cornerWeld;
     for (const o of others) {
       const line = axis === "x" ? o.sx : o.sz;
       const lo = axis === "x" ? Math.min(o.sz, o.ez) : Math.min(o.sx, o.ex);
       const hi = axis === "x" ? Math.max(o.sz, o.ez) : Math.max(o.sx, o.ex);
-      // The crossing wall must actually span this end, not just pass nearby
-      if (along < lo - CORNER_WELD_M || along > hi + CORNER_WELD_M) continue;
+      if (along < lo - cornerWeld || along > hi + cornerWeld) continue;
       const gap = Math.abs(line - value);
       if (gap < bestGap) {
         bestGap = gap;
@@ -497,11 +594,11 @@ export function edgeCoverageRatio(edge: EdgeSpec, runs: WallRun[]): number {
 /**
  * Largest hole (metres) bridged between two collinear wall runs.
  *
- * Sized to span doorways and short extraction dropouts while staying well below
- * the width of a car porch or veranda mouth, so an intentionally open bay is
- * never walled shut.
+ * Sized for extraction dropouts only — not doorways. A typical door is ~0.9 m;
+ * bridging anything near that width walls the opening shut before the 3D carve
+ * pass can cut a hole. Car porch mouths stay open because they are several metres.
  */
-export const MAX_BRIDGE_GAP_M = 1.8;
+export const MAX_BRIDGE_GAP_M = 0.65;
 
 /** Quantisation used to decide that two runs sit on the same line. */
 const COLLINEAR_KEY_M = 0.05;
@@ -657,16 +754,16 @@ export function exteriorRunIndices(runs: WallRun[]): Set<number> {
   return exterior;
 }
 
-/** Collinear tolerance used to fuse duplicate wall runs client-side. */
-export const WALL_FUSE_OFFSET_M = 0.28;
-export const WALL_FUSE_ANGLE_RAD = (10 * Math.PI) / 180;
+/** Collinear tolerance used to fuse duplicate strokes on the same centreline. */
+export const WALL_FUSE_OFFSET_M = 0.12;
+export const WALL_FUSE_ANGLE_RAD = (5 * Math.PI) / 180;
 
 /**
  * Fuse duplicate / collinear wall runs so hand-drawn double-line conventions
  * don't extrude as overlapping slabs. Mirrors the backend consolidation so the
  * scene stays clean even against an older API response.
  */
-export function fuseWallRuns(runs: WallRun[]): WallRun[] {
+export function fuseWallRuns(runs: WallRun[], maxOffset = WALL_FUSE_OFFSET_M): WallRun[] {
   type Cluster = {
     dx: number;
     dz: number;
@@ -699,7 +796,7 @@ export function fuseWallRuns(runs: WallRun[]): WallRun[] {
       const perp = Math.abs(
         -cluster.dz * (run.sx - cluster.ox) + cluster.dx * (run.sz - cluster.oz)
       );
-      if (perp > WALL_FUSE_OFFSET_M) continue;
+      if (perp > maxOffset) continue;
       target = cluster;
       break;
     }
@@ -754,12 +851,14 @@ export function fuseWallRuns(runs: WallRun[]): WallRun[] {
  * L-shaped plan with a car porch cut out of one corner — comes through as drawn
  * instead of being squared into a closed rectangle.
  */
-export function buildOrthogonalLayout(candidates: WallRun[]): WallRun[] {
+export function buildOrthogonalLayout(candidates: WallRun[], scale = 0.036): WallRun[] {
+  const tol = snapTolerancesFromScale(scale);
   let runs = orthogonalizeRuns(candidates);
-  runs = orthogonalizeRuns(fuseWallRuns(runs));
-  runs = alignRunsToGrid(runs);
+  runs = mergeDoubleWallRuns(runs, tol.doubleWallMin, tol.doubleWallMax);
+  runs = orthogonalizeRuns(fuseWallRuns(runs, tol.fuseCollinear));
+  runs = alignRunsToGrid(runs, tol.gridSnap);
   runs = closeCollinearGaps(runs);
-  runs = weldRunCorners(runs);
+  runs = weldRunCorners(runs, tol.cornerWeld);
   // Only un-seal when the AABB is a closed rectangle. An already-L plan
   // has open south/east mouths; trimming those would eat real exterior walls.
   const bounds = boundsFromRuns(runs);
@@ -836,4 +935,108 @@ export function anchorOpeningToRun(
   }
 
   return best;
+}
+
+/** Solid corner filler placed where perpendicular walls meet. */
+export type WallJunction = { x: number; z: number; depth: number };
+
+function junctionKey(x: number, z: number): string {
+  const q = 0.08;
+  return `${Math.round(x / q)}|${Math.round(z / q)}`;
+}
+
+function pointOnRunInterior(
+  px: number,
+  pz: number,
+  run: WallRun,
+  tol: number
+): boolean {
+  if (runAxis(run) === "x") {
+    if (Math.abs(pz - run.sz) > tol) return false;
+    const lo = Math.min(run.sx, run.ex);
+    const hi = Math.max(run.sx, run.ex);
+    return px >= lo + tol && px <= hi - tol;
+  }
+  if (Math.abs(px - run.sx) > tol) return false;
+  const lo = Math.min(run.sz, run.ez);
+  const hi = Math.max(run.sz, run.ez);
+  return pz >= lo + tol && pz <= hi - tol;
+}
+
+/**
+ * Collect L/T/+ junctions where perpendicular walls meet.
+ *
+ * Separate box segments leave visible corner gaps even when centrelines weld;
+ * a corner cube at each junction closes the masonry without inventing new walls.
+ */
+export function collectWallJunctions(
+  runs: WallRun[],
+  tol = CORNER_WELD_M
+): WallJunction[] {
+  const map = new Map<string, WallJunction>();
+  const horizontals = runs.filter((r) => runAxis(r) === "x");
+  const verticals = runs.filter((r) => runAxis(r) === "z");
+
+  const add = (x: number, z: number, depth: number) => {
+    const key = junctionKey(x, z);
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, { x, z, depth });
+      return;
+    }
+    prev.depth = Math.max(prev.depth, depth);
+    prev.x = (prev.x + x) / 2;
+    prev.z = (prev.z + z) / 2;
+  };
+
+  for (const h of horizontals) {
+    const hz = h.sz;
+    const hLo = Math.min(h.sx, h.ex);
+    const hHi = Math.max(h.sx, h.ex);
+    for (const v of verticals) {
+      const vx = v.sx;
+      const vLo = Math.min(v.sz, v.ez);
+      const vHi = Math.max(v.sz, v.ez);
+      if (vx < hLo - tol || vx > hHi + tol || hz < vLo - tol || hz > vHi + tol) {
+        continue;
+      }
+      add(vx, hz, Math.max(h.depth, v.depth));
+    }
+  }
+
+  for (const h of horizontals) {
+    for (const ep of [
+      { x: h.sx, z: h.sz },
+      { x: h.ex, z: h.ez },
+    ]) {
+      for (const v of verticals) {
+        for (const vep of [
+          { x: v.sx, z: v.sz },
+          { x: v.ex, z: v.ez },
+        ]) {
+          if (Math.hypot(ep.x - vep.x, ep.z - vep.z) <= tol) {
+            add((ep.x + vep.x) / 2, (ep.z + vep.z) / 2, Math.max(h.depth, v.depth));
+          }
+        }
+        if (pointOnRunInterior(ep.x, ep.z, v, tol)) {
+          add(ep.x, ep.z, Math.max(h.depth, v.depth));
+        }
+      }
+    }
+  }
+
+  for (const v of verticals) {
+    for (const ep of [
+      { x: v.sx, z: v.sz },
+      { x: v.ex, z: v.ez },
+    ]) {
+      for (const h of horizontals) {
+        if (pointOnRunInterior(ep.x, ep.z, h, tol)) {
+          add(ep.x, ep.z, Math.max(h.depth, v.depth));
+        }
+      }
+    }
+  }
+
+  return [...map.values()];
 }

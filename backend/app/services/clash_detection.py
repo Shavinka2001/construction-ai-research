@@ -85,16 +85,18 @@ SHEET_MARGIN_RATIO = 0.06
 SHEET_BORDER_PERIMETER_RATIO = 0.85
 
 # Orthogonal grid enforcement. Floor plans are drawn on a rectangular grid, so
-# every wall is horizontal or vertical. A stroke within this tolerance snaps to
-# its axis; anything more oblique is a dimension arrow, leader line, hatch or a
-# minAreaRect artifact and is discarded rather than extruded as a diagonal wall.
-ORTHO_SNAP_TOL_DEG = 15.0
-# Parallel walls whose centrelines land this close share one grid line, so
-# fragments from separate passes stay exactly collinear.
-GRID_SNAP_TOL_PX = 12.0
-# A wall end this close to a perpendicular wall's line is welded onto it,
-# closing corner gaps instead of leaving a floating stub.
-CORNER_WELD_TOL_PX = 34.0
+# Residential plans are strictly orthogonal — anything outside this snaps to 0°/90°
+# or is discarded as a dimension line, hatch stroke, or minAreaRect artifact.
+ORTHO_SNAP_TOL_DEG = 5.0
+# Parallel walls whose centrelines land this close share one grid line.
+GRID_SNAP_TOL_PX = 15.0
+# Wall endpoints within this distance weld to a crossing wall's line.
+CORNER_WELD_TOL_PX = 15.0
+# CAD double-line walls: inner + outer face strokes spaced within this band merge
+# to a single centreline (never two overlapping 3D meshes for one wall).
+DOUBLE_WALL_MIN_GAP_PX = 5.0
+DOUBLE_WALL_MAX_GAP_PX = 25.0
+DOUBLE_WALL_MIN_OVERLAP_PX = 18.0
 # Largest hole bridged between two collinear walls. Sized to span doorways and
 # short ink dropouts while staying well under the mouth of a car porch or
 # veranda, so an intentionally open bay is never walled shut and a concave
@@ -112,7 +114,7 @@ MIN_WALL_LENGTH_PX = 25.0
 COLLINEAR_ANGLE_TOL_DEG = 8.0
 COLLINEAR_OFFSET_TOL_PX = 14.0
 SPAN_MERGE_GAP_PX = 26.0
-MAX_CONSOLIDATED_WALLS = 36
+MAX_CONSOLIDATED_WALLS = 72
 
 # Hand-drawn opening symbols: doors tagged D1..Dn, windows tagged W1..Wn.
 OPENING_TAG_PATTERN = re.compile(r"([DW])\s*(\d{1,2})", re.IGNORECASE)
@@ -125,6 +127,14 @@ TAG_TO_WALL_SNAP_PX = 90.0
 GAP_MIN_PX = 26.0
 GAP_MAX_PX = 190.0
 GAP_DOOR_MAX_PX = 95.0
+# Exterior vs interior wall classification for opening typing.
+PERIMETER_WALL_TOL_PX = 14.0
+# Door swing arcs on CAD plans — search radius around each opening centre.
+SWING_ARC_SEARCH_RADIUS_PX = 80.0
+SWING_ARC_MIN_CURVATURE = 1.22
+# Staircase tread lines: parallel strokes closer than this are hatching, not walls.
+STAIR_STEP_MAX_SPACING_PX = 15.0
+STAIR_MIN_STEP_LINES = 4
 
 
 @dataclass(frozen=True)
@@ -955,6 +965,198 @@ def _closest_wall(
     return best, best_dist, best_point
 
 
+def _perimeter_tol(bounds: dict[str, float]) -> float:
+    span = min(bounds["max_x"] - bounds["min_x"], bounds["max_y"] - bounds["min_y"])
+    return max(PERIMETER_WALL_TOL_PX, span * 0.06)
+
+
+def _wall_is_perimeter(
+    wall: dict[str, Any],
+    bounds: dict[str, float],
+    *,
+    tol: float | None = None,
+) -> bool:
+    """True when a wall segment rides the house AABB envelope (exterior shell)."""
+    edge_tol = tol if tol is not None else _perimeter_tol(bounds)
+    x1, y1 = float(wall["x1"]), float(wall["y1"])
+    x2, y2 = float(wall["x2"]), float(wall["y2"])
+    horizontal = abs(x2 - x1) >= abs(y2 - y1)
+
+    if horizontal:
+        y = (y1 + y2) / 2.0
+        on_north = abs(y - bounds["min_y"]) <= edge_tol
+        on_south = abs(y - bounds["max_y"]) <= edge_tol
+        return on_north or on_south
+
+    x = (x1 + x2) / 2.0
+    on_west = abs(x - bounds["min_x"]) <= edge_tol
+    on_east = abs(x - bounds["max_x"]) <= edge_tol
+    return on_west or on_east
+
+
+def _detect_door_swing_arcs(image: np.ndarray) -> list[tuple[float, float, float]]:
+    """
+    Find quarter-circle door swing arcs drawn on CAD / scanned plans.
+
+    Returns ``(centre_x, centre_y, radius)`` for each curved stroke whose arc
+    length clearly exceeds its chord — the signature of a door swing symbol.
+    """
+    gray = (
+        image
+        if image.ndim == 2
+        else cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    )
+    h, w = gray.shape[:2]
+    blur = cv2.GaussianBlur(gray, (3, 3), 0)
+    edges = cv2.Canny(blur, 45, 140)
+    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+
+    arcs: list[tuple[float, float, float]] = []
+    max_dim = float(min(w, h))
+
+    for cnt in contours:
+        if len(cnt) < 14:
+            continue
+        arc_len = cv2.arcLength(cnt, False)
+        if arc_len < 22.0:
+            continue
+        p0 = cnt[0][0]
+        pn = cnt[-1][0]
+        chord = float(np.hypot(float(p0[0] - pn[0]), float(p0[1] - pn[1])))
+        if chord < 6.0 or arc_len / chord < SWING_ARC_MIN_CURVATURE:
+            continue
+        bx, by, bw, bh = cv2.boundingRect(cnt)
+        if max(bw, bh) > max_dim * 0.18 or min(bw, bh) < 6:
+            continue
+        arcs.append((bx + bw / 2.0, by + bh / 2.0, max(bw, bh) / 2.0))
+
+    logger.info("Door swing arc pass: %d arc(s) found", len(arcs))
+    return arcs
+
+
+def _near_swing_arc(
+    cx: float,
+    cy: float,
+    arcs: list[tuple[float, float, float]],
+    *,
+    search_radius: float = SWING_ARC_SEARCH_RADIUS_PX,
+) -> bool:
+    for ax, ay, radius in arcs:
+        if math.hypot(cx - ax, cy - ay) <= search_radius + radius:
+            return True
+    return False
+
+
+def _opening_kind_from_context(
+    cx: float,
+    cy: float,
+    walls: list[dict[str, Any]],
+    bounds: dict[str, float] | None,
+    swing_arcs: list[tuple[float, float, float]],
+) -> str:
+    """
+    Classify an opening as ``door`` or ``window``.
+
+    Interior partition walls and swing-arc symbols are always doors; perimeter
+    shell walls are windows.
+    """
+    if _near_swing_arc(cx, cy, swing_arcs):
+        return "door"
+
+    wall, dist, _foot = _closest_wall(cx, cy, walls)
+    if wall is not None and dist <= TAG_TO_WALL_SNAP_PX and bounds is not None:
+        if _wall_is_perimeter(wall, bounds):
+            return "window"
+        return "door"
+
+    # No reliable host wall — lean on swing arcs (handled above) and footprint.
+    if bounds is not None:
+        edge_tol = _perimeter_tol(bounds)
+        on_shell = (
+            abs(cx - bounds["min_x"]) <= edge_tol
+            or abs(cx - bounds["max_x"]) <= edge_tol
+            or abs(cy - bounds["min_y"]) <= edge_tol
+            or abs(cy - bounds["max_y"]) <= edge_tol
+        )
+        return "window" if on_shell else "door"
+
+    return "door"
+
+
+def reclassify_openings(
+    openings: list[Detection],
+    walls: list[dict[str, Any]],
+    image: np.ndarray,
+    bounds: dict[str, float] | None,
+) -> list[Detection]:
+    """
+    Re-type YOLO / heuristic openings using wall context and swing arcs.
+
+    CAD plans often label every opening as a window; this pass splits them into
+    exterior windows and interior doors so counts match the real floor plan.
+    """
+    if not openings:
+        return openings
+
+    bounds = bounds or house_bounds_from_walls(walls)
+    swing_arcs = _detect_door_swing_arcs(image)
+
+    typed: list[tuple[str, Detection, float, float]] = []
+    for opening in openings:
+        cx = opening.box.xmin + opening.box.width / 2.0
+        cy = opening.box.ymin + opening.box.height / 2.0
+        kind = _opening_kind_from_context(cx, cy, walls, bounds, swing_arcs)
+        typed.append((kind, opening, cx, cy))
+
+    typed.sort(key=lambda item: (item[3], item[2]))  # top-to-bottom, left-to-right
+
+    doors = [item for item in typed if item[0] == "door"]
+    windows = [item for item in typed if item[0] == "window"]
+
+    renumbered: list[Detection] = []
+    for idx, (_kind, opening, cx, cy) in enumerate(doors, start=1):
+        wall, dist, foot = _closest_wall(cx, cy, walls)
+        box = opening.box
+        if wall is not None and dist <= TAG_TO_WALL_SNAP_PX:
+            box = _opening_box_at(
+                foot[0], foot[1], wall, DOOR_SYMBOL_SIZE_PX, CANVAS_SIZE
+            )
+        renumbered.append(
+            Detection(
+                id=f"D{idx}",
+                label=f"Door D{idx}",
+                confidence=opening.confidence,
+                box=box,
+                source=opening.source,
+            )
+        )
+
+    for idx, (_kind, opening, cx, cy) in enumerate(windows, start=1):
+        wall, dist, foot = _closest_wall(cx, cy, walls)
+        box = opening.box
+        if wall is not None and dist <= TAG_TO_WALL_SNAP_PX:
+            box = _opening_box_at(
+                foot[0], foot[1], wall, WINDOW_SYMBOL_SIZE_PX, CANVAS_SIZE
+            )
+        renumbered.append(
+            Detection(
+                id=f"W{idx}",
+                label=f"Window W{idx}",
+                confidence=opening.confidence,
+                box=box,
+                source=opening.source,
+            )
+        )
+
+    logger.info(
+        "Opening reclassification: %d door(s), %d window(s) (from %d raw)",
+        len(doors),
+        len(windows),
+        len(openings),
+    )
+    return renumbered
+
+
 def _opening_box_at(
     cx: float,
     cy: float,
@@ -1575,8 +1777,8 @@ def _segments_from_room_polygons(
 def _merge_near_duplicate_walls(
     walls: list[dict[str, int]],
     *,
-    dist_tol: float = 8.0,
-    angle_tol_deg: float = 12.0,
+    dist_tol: float = 12.0,
+    angle_tol_deg: float = 5.0,
 ) -> list[dict[str, int]]:
     """
     Collapse near-collinear overlapping segments from multi-pass extraction.
@@ -1648,6 +1850,122 @@ def _normalized_direction(seg: dict[str, Any]) -> tuple[float, float]:
     if dy < 0 or (abs(dy) < 1e-9 and dx < 0):
         dx, dy = -dx, -dy
     return dx, dy
+
+
+def _segment_is_horizontal(seg: dict[str, Any]) -> bool:
+    return abs(float(seg["x2"]) - float(seg["x1"])) >= abs(
+        float(seg["y2"]) - float(seg["y1"])
+    )
+
+
+def _segment_run_span(
+    seg: dict[str, Any], horizontal: bool
+) -> tuple[float, float, float]:
+    """Return ``(along_lo, along_hi, perpendicular_coord)`` for a segment."""
+    x1, y1 = float(seg["x1"]), float(seg["y1"])
+    x2, y2 = float(seg["x2"]), float(seg["y2"])
+    if horizontal:
+        return (min(x1, x2), max(x1, x2), (y1 + y2) / 2.0)
+    return (min(y1, y2), max(y1, y2), (x1 + x2) / 2.0)
+
+
+def _centreline_from_cluster(
+    cluster: list[dict[str, Any]], horizontal: bool
+) -> dict[str, Any]:
+    """Fuse parallel double-wall strokes into one centreline."""
+    if len(cluster) == 1:
+        return cluster[0]
+
+    spans = [_segment_run_span(seg, horizontal) for seg in cluster]
+    lo = min(s[0] for s in spans)
+    hi = max(s[1] for s in spans)
+    perp = sum(s[2] for s in spans) / len(spans)
+    thickness = max(
+        float(seg.get("thickness") or WALL_SEGMENT_THICKNESS_PX) for seg in cluster
+    )
+    template = cluster[0]
+    if horizontal:
+        merged = {
+            **template,
+            "x1": int(round(lo)),
+            "y1": int(round(perp)),
+            "x2": int(round(hi)),
+            "y2": int(round(perp)),
+        }
+    else:
+        merged = {
+            **template,
+            "x1": int(round(perp)),
+            "y1": int(round(lo)),
+            "x2": int(round(perp)),
+            "y2": int(round(hi)),
+        }
+    merged["thickness"] = int(round(thickness))
+    return merged
+
+
+def _merge_double_wall_centrelines(
+    segments: list[dict[str, Any]],
+    *,
+    min_gap_px: float = DOUBLE_WALL_MIN_GAP_PX,
+    max_gap_px: float = DOUBLE_WALL_MAX_GAP_PX,
+    min_overlap_px: float = DOUBLE_WALL_MIN_OVERLAP_PX,
+) -> list[dict[str, Any]]:
+    """
+    Merge parallel inner/outer face lines into a single wall centreline.
+
+    CAD plans draw each wall as two parallel strokes. When a pair (or cluster)
+    is separated by ``min_gap_px``–``max_gap_px`` and overlaps along the run,
+    they become one segment at the midpoint — never two 3D slabs.
+    """
+    if len(segments) < 2:
+        return segments
+
+    buckets: dict[str, list[tuple[int, dict[str, Any]]]] = {"h": [], "v": []}
+    for idx, seg in enumerate(segments):
+        key = "h" if _segment_is_horizontal(seg) else "v"
+        buckets[key].append((idx, seg))
+
+    used: set[int] = set()
+    merged: list[dict[str, Any]] = []
+
+    for horizontal in (True, False):
+        key = "h" if horizontal else "v"
+        for idx, seed in buckets[key]:
+            if idx in used:
+                continue
+            cluster = [seed]
+            used.add(idx)
+            lo, hi, _ = _segment_run_span(seed, horizontal)
+            perps = [_segment_run_span(seed, horizontal)[2]]
+
+            expanded = True
+            while expanded:
+                expanded = False
+                for jdx, other in buckets[key]:
+                    if jdx in used:
+                        continue
+                    olo, ohi, operp = _segment_run_span(other, horizontal)
+                    overlap = min(hi, ohi) - max(lo, olo)
+                    if overlap < min_overlap_px:
+                        continue
+                    min_perp_gap = min(abs(operp - p) for p in perps)
+                    if min_gap_px <= min_perp_gap <= max_gap_px:
+                        cluster.append(other)
+                        used.add(jdx)
+                        perps.append(operp)
+                        lo, hi = min(lo, olo), max(hi, ohi)
+                        expanded = True
+
+            merged.append(_centreline_from_cluster(cluster, horizontal))
+
+    if len(merged) < len(segments):
+        logger.info(
+            "Double-wall merge: %d parallel stroke(s) -> %d centreline(s)",
+            len(segments),
+            len(merged),
+        )
+    return merged
 
 
 def _orthogonalize_segments(
@@ -2242,6 +2560,67 @@ def filter_openings_to_house_bounds(
     return kept
 
 
+def _drop_staircase_segments(
+    segments: list[dict[str, Any]],
+    *,
+    max_spacing: float = STAIR_STEP_MAX_SPACING_PX,
+    min_lines: int = STAIR_MIN_STEP_LINES,
+) -> list[dict[str, Any]]:
+    """
+    Remove tightly spaced parallel strokes that form staircase treads.
+
+    Stair symbols draw many parallel lines a few pixels apart; OpenCV treats
+    each tread as a wall segment. A cluster of ``min_lines`` or more parallel
+    strokes within ``max_spacing`` is discarded as hatching, not masonry.
+    """
+    if len(segments) < min_lines:
+        return segments
+
+    orient_groups: dict[str, list[dict[str, Any]]] = {}
+    for seg in segments:
+        x1, y1 = float(seg["x1"]), float(seg["y1"])
+        x2, y2 = float(seg["x2"]), float(seg["y2"])
+        horizontal = abs(x2 - x1) >= abs(y2 - y1)
+        orient_groups.setdefault("h" if horizontal else "v", []).append(seg)
+
+    drop: set[int] = set()
+
+    for axis, group in orient_groups.items():
+        horizontal = axis == "h"
+
+        def perp_pos(seg: dict[str, Any]) -> float:
+            if horizontal:
+                return (float(seg["y1"]) + float(seg["y2"])) / 2.0
+            return (float(seg["x1"]) + float(seg["x2"])) / 2.0
+
+        sorted_segs = sorted(group, key=perp_pos)
+        idx = 0
+        while idx < len(sorted_segs):
+            cluster = [sorted_segs[idx]]
+            nxt = idx + 1
+            while nxt < len(sorted_segs):
+                gap = perp_pos(sorted_segs[nxt]) - perp_pos(sorted_segs[nxt - 1])
+                if gap > max_spacing:
+                    break
+                cluster.append(sorted_segs[nxt])
+                nxt += 1
+            if len(cluster) >= min_lines:
+                for seg in cluster:
+                    drop.add(id(seg))
+            idx = nxt if nxt > idx + 1 else idx + 1
+
+    if not drop:
+        return segments
+
+    kept = [seg for seg in segments if id(seg) not in drop]
+    logger.info(
+        "Staircase filter: dropped %d tread line(s), %d wall segment(s) remain",
+        len(segments) - len(kept),
+        len(kept),
+    )
+    return kept
+
+
 def extract_room_boundary_walls(
     image: np.ndarray,
     *,
@@ -2315,7 +2694,9 @@ def extract_room_boundary_walls(
     walls = _drop_sheet_border_segments(walls, w, h)
     # Force the orthogonal grid before merging so collinear tests are exact
     walls = _orthogonalize_segments(walls)
+    walls = _merge_double_wall_centrelines(walls)
     walls = _merge_near_duplicate_walls(walls)
+    walls = _drop_staircase_segments(walls)
     # Fuse collinear fragments so a wall run is one solid centreline
     walls = consolidate_wall_segments(walls)
     # Consolidation can re-create a full-width run along a margin — re-filter
@@ -2697,8 +3078,13 @@ def detect_clashes(
         raw_wall_lines, columns=provisional_columns, canvas=CANVAS_SIZE
     )
 
-    # --- 4) Architectural openings: YOLOv8, then hand-drawn symbol fallback ----
+    # --- 4) Architectural openings: YOLOv8, wall-context split, symbol fallback -
     openings = detect_architectural_openings(arch_aligned)
+    openings = filter_openings_to_house_bounds(openings, house_bounds)
+    openings = reclassify_openings(
+        openings, raw_wall_lines, arch_aligned, house_bounds
+    )
+
     has_doors = any(o.id.startswith("D") for o in openings)
     has_windows = any(o.id.startswith("W") for o in openings)
 
@@ -2706,8 +3092,7 @@ def detect_clashes(
         symbol_openings = detect_opening_symbols(
             arch_aligned, raw_wall_lines, canvas=CANVAS_SIZE
         )
-        # Trust YOLO for whichever class it already found; fill in the rest
-        # from the hand-drawn symbol detector.
+        # Trust YOLO + reclassification for whichever class is already present.
         fill_in = [
             o
             for o in symbol_openings
@@ -2715,15 +3100,14 @@ def detect_clashes(
             or (o.id.startswith("W") and not has_windows)
         ]
         if fill_in:
-            openings = openings + fill_in
+            openings = reclassify_openings(
+                openings + fill_in, raw_wall_lines, arch_aligned, house_bounds
+            )
             logger.info(
-                "Opening fallback added %d opening(s) — %d total",
+                "Opening fallback added %d opening(s) — %d total after reclassify",
                 len(fill_in),
                 len(openings),
             )
-
-    # Reject phantom D/W tags picked up from the title block or legend
-    openings = filter_openings_to_house_bounds(openings, house_bounds)
 
     # --- 5) Columns: OpenCV structural plan OR Generative Structural Layout -----
     ai_generated = False

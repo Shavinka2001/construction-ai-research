@@ -957,10 +957,18 @@ export async function runClashDetection(
 
     const clashes = normalizeClashes(payload.clashes);
     const fromApi = normalizeRecommendations(payload.recommendations);
+    const hasLivePayload = Boolean(
+      (Array.isArray(payload.walls) && payload.walls.length > 0) ||
+        (Array.isArray(payload.detections) && payload.detections.length > 0) ||
+        (Array.isArray(payload.architectural_detections) &&
+          payload.architectural_detections.length > 0)
+    );
     const recommendations =
       fromApi.length > 0
         ? fromApi
-        : buildGcrRecommendations(clashes.length ? clashes : DEFAULT_CLASHES);
+        : hasLivePayload
+          ? buildGcrRecommendations(clashes)
+          : buildGcrRecommendations(clashes.length ? clashes : DEFAULT_CLASHES);
 
     const architecturalAudit =
       normalizeArchitecturalAudit(payload.architectural_audit) ??
@@ -1005,7 +1013,7 @@ export async function runClashDetection(
       blueprint3d,
       // Never substitute demo detections for a live analysis payload.
       detections,
-      clashes: clashes.length ? clashes : DEFAULT_CLASHES,
+      clashes: clashes.length ? clashes : hasLivePayload ? [] : DEFAULT_CLASHES,
       recommendations,
       architecturalAudit,
       model:

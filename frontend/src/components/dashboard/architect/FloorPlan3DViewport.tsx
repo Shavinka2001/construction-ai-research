@@ -10,6 +10,7 @@ import {
   anchorOpeningToRun,
   boundsFromRuns,
   buildOrthogonalLayout,
+  collectWallJunctions,
   exteriorRunIndices,
   findCornerCutout,
   gapSpans,
@@ -107,10 +108,14 @@ export interface FloorPlan3DViewportProps {
 // Architectural constants
 // ---------------------------------------------------------------------------
 
-const WALL_HEIGHT = 3.0;
+const WALL_HEIGHT = 2.6;
+/** Dark trim cap along the top face of every wall (dollhouse view). */
+const WALL_CAP_HEIGHT = 0.045;
+/** Uniform masonry depth for a clean architectural read. */
+const WALL_DEPTH_M = 0.22;
 /** Lowest roof edge — sits just above wall tops so eaves never cover walls. */
-const EAVE_Y = 3.05;
-const RIDGE_Y = 4.8;
+const EAVE_Y = WALL_HEIGHT + 0.05;
+const RIDGE_Y = WALL_HEIGHT + 1.75;
 const EAVE_OVERHANG = 0.4;
 const DOOR_OPEN_ANGLE = (30 * Math.PI) / 180;
 const EYE_LEVEL = 1.62;
@@ -151,6 +156,7 @@ function disposeObject3D(root: THREE.Object3D) {
 
 type HouseMaterials = {
   wall: THREE.MeshStandardMaterial;
+  wallCap: THREE.MeshStandardMaterial;
   edge: THREE.LineBasicMaterial;
   roof: THREE.MeshStandardMaterial;
   roofEdge: THREE.LineBasicMaterial;
@@ -170,8 +176,13 @@ function createHouseMaterials(): HouseMaterials {
   return {
     wall: new THREE.MeshStandardMaterial({
       color: 0xf8fafc,
-      roughness: 0.85,
+      roughness: 0.88,
       metalness: 0.0,
+    }),
+    wallCap: new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.42,
+      metalness: 0.05,
     }),
     edge: new THREE.LineBasicMaterial({ color: 0x94a3b8 }),
     roof: new THREE.MeshStandardMaterial({
@@ -607,13 +618,35 @@ function addWallBox(
   x: number,
   y: number,
   z: number,
-  rotationY = 0
+  rotationY = 0,
+  material: THREE.MeshStandardMaterial = ctx.materials.wall
 ) {
   const geo = new THREE.BoxGeometry(w, h, d);
-  const mesh = shadowMesh(new THREE.Mesh(geo, ctx.materials.wall));
+  const mesh = shadowMesh(new THREE.Mesh(geo, material));
   mesh.position.set(x, y, z);
   mesh.rotation.y = rotationY;
   ctx.group.add(mesh);
+}
+
+function addWallTopCap(
+  ctx: BuildContext,
+  w: number,
+  d: number,
+  x: number,
+  z: number,
+  rotationY = 0
+) {
+  addWallBox(
+    ctx,
+    w,
+    WALL_CAP_HEIGHT,
+    d,
+    x,
+    WALL_HEIGHT - WALL_CAP_HEIGHT / 2,
+    z,
+    rotationY,
+    ctx.materials.wallCap
+  );
 }
 
 function createRoofHalfGeo(corners: THREE.Vector3[]) {
@@ -632,9 +665,27 @@ function createRoofHalfGeo(corners: THREE.Vector3[]) {
 }
 
 function orientToOutward(group: THREE.Group, outward: THREE.Vector3) {
-  if (outward.z < -0.5) group.rotation.y = Math.PI;
-  else if (outward.x < -0.5) group.rotation.y = -Math.PI / 2;
-  else if (outward.x > 0.5) group.rotation.y = Math.PI / 2;
+  const n = outward.clone().normalize();
+  group.rotation.y = Math.atan2(n.x, n.z);
+}
+
+function embedInWall(
+  anchor: { x: number; z: number; outwardX: number; outwardZ: number },
+  depth: number
+): { x: number; z: number } {
+  const inset = depth * 0.5 - 0.02;
+  return {
+    x: anchor.x + anchor.outwardX * inset,
+    z: anchor.z + anchor.outwardZ * inset,
+  };
+}
+
+function addCornerPatches(ctx: BuildContext, runs: WallRun[]) {
+  for (const junction of collectWallJunctions(runs)) {
+    const d = WALL_DEPTH_M;
+    addWallBox(ctx, d, WALL_HEIGHT, d, junction.x, WALL_HEIGHT / 2, junction.z);
+    addWallTopCap(ctx, d, d, junction.x, junction.z);
+  }
 }
 
 function addFramedWindow(
@@ -879,33 +930,79 @@ function addDynamicRoofAndSlab(
   const eaveMaxX = maxX + EAVE_OVERHANG;
   const eaveMinZ = minZ - EAVE_OVERHANG;
   const eaveMaxZ = maxZ + EAVE_OVERHANG;
-  const ridgeX = cx;
-  const halfWidthX = (maxX - minX) / 2;
+  const spanX = maxX - minX;
+  const spanZ = maxZ - minZ;
+  const ridgeAlongX = spanX >= spanZ;
 
-  // Eaves at EAVE_Y (3.05) — roof sits ON TOP of walls; ridge at RIDGE_Y (4.8)
   const roofGroup = new THREE.Group();
-  const leftGeo = createRoofHalfGeo([
-    new THREE.Vector3(ridgeX, RIDGE_Y, eaveMinZ),
-    new THREE.Vector3(ridgeX, RIDGE_Y, eaveMaxZ),
-    new THREE.Vector3(eaveMinX, EAVE_Y, eaveMaxZ),
-    new THREE.Vector3(eaveMinX, EAVE_Y, eaveMinZ),
-  ]);
-  roofGroup.add(shadowMesh(new THREE.Mesh(leftGeo, ctx.materials.roof)));
 
-  const rightGeo = createRoofHalfGeo([
-    new THREE.Vector3(ridgeX, RIDGE_Y, eaveMinZ),
-    new THREE.Vector3(ridgeX, RIDGE_Y, eaveMaxZ),
-    new THREE.Vector3(eaveMaxX, EAVE_Y, eaveMaxZ),
-    new THREE.Vector3(eaveMaxX, EAVE_Y, eaveMinZ),
-  ]);
-  roofGroup.add(shadowMesh(new THREE.Mesh(rightGeo, ctx.materials.roof)));
+  if (ridgeAlongX) {
+    const ridgeX = cx;
+    const halfWidthX = spanX / 2;
+    const leftGeo = createRoofHalfGeo([
+      new THREE.Vector3(ridgeX, RIDGE_Y, eaveMinZ),
+      new THREE.Vector3(ridgeX, RIDGE_Y, eaveMaxZ),
+      new THREE.Vector3(eaveMinX, EAVE_Y, eaveMaxZ),
+      new THREE.Vector3(eaveMinX, EAVE_Y, eaveMinZ),
+    ]);
+    roofGroup.add(shadowMesh(new THREE.Mesh(leftGeo, ctx.materials.roof)));
 
-  [leftGeo, rightGeo].forEach((geo) => {
-    roofGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), ctx.materials.roofEdge));
-  });
+    const rightGeo = createRoofHalfGeo([
+      new THREE.Vector3(ridgeX, RIDGE_Y, eaveMinZ),
+      new THREE.Vector3(ridgeX, RIDGE_Y, eaveMaxZ),
+      new THREE.Vector3(eaveMaxX, EAVE_Y, eaveMaxZ),
+      new THREE.Vector3(eaveMaxX, EAVE_Y, eaveMinZ),
+    ]);
+    roofGroup.add(shadowMesh(new THREE.Mesh(rightGeo, ctx.materials.roof)));
 
-  addSealedGable(ctx, ridgeX, halfWidthX, maxZ, false);
-  addSealedGable(ctx, ridgeX, halfWidthX, minZ, true);
+    [leftGeo, rightGeo].forEach((geo) => {
+      roofGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), ctx.materials.roofEdge));
+    });
+
+    addSealedGable(ctx, ridgeX, halfWidthX, maxZ, false);
+    addSealedGable(ctx, ridgeX, halfWidthX, minZ, true);
+  } else {
+    const ridgeZ = cz;
+    const halfDepthZ = spanZ / 2 + EAVE_OVERHANG;
+
+    const westGeo = createRoofHalfGeo([
+      new THREE.Vector3(eaveMinX, EAVE_Y, eaveMinZ),
+      new THREE.Vector3(eaveMinX, EAVE_Y, eaveMaxZ),
+      new THREE.Vector3(cx, RIDGE_Y, eaveMaxZ),
+      new THREE.Vector3(cx, RIDGE_Y, eaveMinZ),
+    ]);
+    roofGroup.add(shadowMesh(new THREE.Mesh(westGeo, ctx.materials.roof)));
+
+    const eastGeo = createRoofHalfGeo([
+      new THREE.Vector3(cx, RIDGE_Y, eaveMinZ),
+      new THREE.Vector3(cx, RIDGE_Y, eaveMaxZ),
+      new THREE.Vector3(eaveMaxX, EAVE_Y, eaveMaxZ),
+      new THREE.Vector3(eaveMaxX, EAVE_Y, eaveMinZ),
+    ]);
+    roofGroup.add(shadowMesh(new THREE.Mesh(eastGeo, ctx.materials.roof)));
+
+    [westGeo, eastGeo].forEach((geo) => {
+      roofGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), ctx.materials.roofEdge));
+    });
+
+    const gableShape = (halfW: number) => {
+      const shape = new THREE.Shape();
+      shape.moveTo(-halfW, EAVE_Y);
+      shape.lineTo(halfW, EAVE_Y);
+      shape.lineTo(0, RIDGE_Y);
+      shape.closePath();
+      return new THREE.ShapeGeometry(shape);
+    };
+    const westGable = shadowMesh(new THREE.Mesh(gableShape(halfDepthZ), ctx.materials.wall));
+    westGable.position.set(minX, 0, ridgeZ);
+    westGable.rotation.y = Math.PI / 2;
+    roofGroup.add(westGable);
+
+    const eastGable = shadowMesh(new THREE.Mesh(gableShape(halfDepthZ), ctx.materials.wall));
+    eastGable.position.set(maxX, 0, ridgeZ);
+    eastGable.rotation.y = -Math.PI / 2;
+    roofGroup.add(eastGable);
+  }
 
   ctx.group.add(roofGroup);
   return roofGroup;
@@ -942,7 +1039,7 @@ function extrudeRun(ctx: BuildContext, run: WallRun, cuts: RunCut[]) {
   const ux = (run.ex - run.sx) / len;
   const uz = (run.ez - run.sz) / len;
   const angle = -Math.atan2(run.ez - run.sz, run.ex - run.sx);
-  const { depth } = run;
+  const depth = WALL_DEPTH_M;
 
   const at = (t: number) => ({ x: run.sx + ux * t, z: run.sz + uz * t });
 
@@ -952,9 +1049,8 @@ function extrudeRun(ctx: BuildContext, run: WallRun, cuts: RunCut[]) {
   );
 
   for (const [a, b] of gapSpans(0, len, holes, 0.02)) {
-    // Grow the outer ends by half a wall depth so corners meet solidly
-    const start = a <= 1e-3 ? a - depth / 2 : a;
-    const end = b >= len - 1e-3 ? b + depth / 2 : b;
+    const start = a <= 1e-3 ? a - depth * 0.5 : a;
+    const end = b >= len - 1e-3 ? b + depth * 0.5 : b;
     const mid = at((start + end) / 2);
     addWallBox(
       ctx,
@@ -966,6 +1062,7 @@ function extrudeRun(ctx: BuildContext, run: WallRun, cuts: RunCut[]) {
       mid.z,
       angle
     );
+    addWallTopCap(ctx, end - start, depth, mid.x, mid.z, angle);
   }
 
   for (const cut of cuts) {
@@ -986,6 +1083,7 @@ function extrudeRun(ctx: BuildContext, run: WallRun, cuts: RunCut[]) {
         mid.z,
         angle
       );
+      addWallTopCap(ctx, t1 - t0, depth, mid.x, mid.z, angle);
     }
 
     if (cut.sillY > 0.05) {
@@ -1031,18 +1129,11 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): THREE.Grou
     const ez = toZ(seg.y2);
     if (Math.hypot(ex - sx, ez - sz) < MIN_WALL_RUN_M) continue;
 
-    const thicknessPx = Number(wall.thickness ?? 9);
-    const depth = Math.max(
-      0.18,
-      Math.min(0.4, (Number.isFinite(thicknessPx) ? thicknessPx : 9) * scale)
-    );
-    candidateRuns.push({ sx, sz, ex, ez, depth });
+    candidateRuns.push({ sx, sz, ex, ez, depth: WALL_DEPTH_M });
   }
 
-  // 2) Square up the layout: drop diagonals, fuse duplicates, share grid lines,
-  //    bridge collinear holes, weld corners. The footprint keeps whatever shape
-  //    the plan was drawn in, including a car porch cut out of one corner.
-  let runs = buildOrthogonalLayout(candidateRuns);
+  // 2) Square up: strict orthogonal, double-wall merge, corner snap
+  let runs = buildOrthogonalLayout(candidateRuns, scale);
 
   if (runs.length === 0) {
     // Never invent a hardcoded house — callers must show an empty state instead.
@@ -1130,6 +1221,7 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): THREE.Grou
 
     const outward = new THREE.Vector3(anchor.outwardX, 0, anchor.outwardZ);
     const half = openingW / 2 + OPENING_CUT_PAD;
+    const embed = embedInWall(anchor, WALL_DEPTH_M);
     if (isWindow) {
       const sillY = Math.max(0.35, WINDOW_CENTER_Y - size.h / 2 - 0.08);
       addCut(runIndex, {
@@ -1140,9 +1232,9 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): THREE.Grou
       });
       addFramedWindow(
         ctx,
-        anchor.x,
+        embed.x,
         WINDOW_CENTER_Y,
-        anchor.z,
+        embed.z,
         size.w,
         size.h,
         outward
@@ -1154,20 +1246,21 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): THREE.Grou
         sillY: 0,
         headY: Math.min(WALL_HEIGHT, DOOR_HEAD_Y),
       });
-      addDynamicDoor(ctx, anchor.x, 0, anchor.z, outward);
+      addDynamicDoor(ctx, embed.x, 0, embed.z, outward);
     }
   }
 
-  // 5) Extrude masonry with the openings carved out
+  // 5) Extrude masonry with the openings carved out, then seal corners
   runs.forEach((run, i) => extrudeRun(ctx, run, cutsByRun.get(i) ?? []));
+  addCornerPatches(ctx, runs);
 
   for (const det of data.structural_detections ?? []) {
     const center = detectionCenter(det, imgW, imgH);
     if (!center) continue;
     const col = shadowMesh(
-      new THREE.Mesh(new THREE.BoxGeometry(0.42, 3.05, 0.42), ctx.materials.column)
+      new THREE.Mesh(new THREE.BoxGeometry(0.42, WALL_HEIGHT, 0.42), ctx.materials.column)
     );
-    col.position.set(toX(center.cx), 1.52, toZ(center.cy));
+    col.position.set(toX(center.cx), WALL_HEIGHT / 2, toZ(center.cy));
     ctx.group.add(col);
   }
 
@@ -1197,7 +1290,7 @@ export function FloorPlan3DViewport({
   const keysPressed = useRef<Record<string, boolean>>({});
 
   const [isNightMode, setIsNightMode] = useState(false);
-  const [showRoof, setShowRoof] = useState(true);
+  const [showRoof, setShowRoof] = useState(false);
   const [isWalkthrough, setIsWalkthrough] = useState(false);
 
   const blueprintData = useMemo(
@@ -1223,7 +1316,7 @@ export function FloorPlan3DViewport({
     const height = container.clientHeight || 500;
 
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 500);
-    camera.position.set(0, 9, 15);
+    camera.position.set(0, 14, 16);
     cameraRef.current = camera;
 
     let renderer: THREE.WebGLRenderer;

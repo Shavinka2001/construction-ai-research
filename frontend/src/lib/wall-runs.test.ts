@@ -5,6 +5,7 @@ import {
   boundsFromRuns,
   buildOrthogonalLayout,
   closeCollinearGaps,
+  collectWallJunctions,
   coveredSpansAlongEdge,
   edgeCoverageRatio,
   edgeSpecs,
@@ -12,6 +13,7 @@ import {
   findCornerCutout,
   gapSpans,
   isExteriorRun,
+  mergeDoubleWallRuns,
   mergeSpans,
   orthogonalizeRuns,
   runAxis,
@@ -57,8 +59,8 @@ describe("orthogonalizeRuns", () => {
   });
 
   it("keeps walls within tolerance of an axis and rejects those beyond it", () => {
-    // ~11 deg is a sloppy hand-drawn wall; ~30 deg is a leader line
-    const sloppy = orthogonalizeRuns([run(0, 0, 5, 1)]);
+    // ~4 deg is a sloppy hand-drawn wall; ~30 deg is a leader line
+    const sloppy = orthogonalizeRuns([run(0, 0, 5, 0.35)]);
     const oblique = orthogonalizeRuns([run(0, 0, 5, 2.9)]);
     expect(sloppy).toHaveLength(1);
     expect(oblique).toHaveLength(0);
@@ -69,7 +71,7 @@ describe("weldRunCorners", () => {
   it("closes a corner where the walls stop short of each other", () => {
     const runs = weldRunCorners([
       run(0, 0, 5, 0),
-      run(5.4, 0.3, 5.4, 4), // vertical wall offset from the horizontal's end
+      run(5.3, 0.3, 5.3, 4), // vertical wall offset from the horizontal's end
     ]);
     const horizontal = runs.find((r) => runAxis(r) === "x")!;
     const vertical = runs.find((r) => runAxis(r) === "z")!;
@@ -117,11 +119,16 @@ describe("buildOrthogonalLayout", () => {
 });
 
 describe("closeCollinearGaps", () => {
-  it("joins two collinear walls split by a doorway", () => {
-    const merged = closeCollinearGaps([run(0, 0, 4, 0), run(5, 0, 10, 0)]);
+  it("joins collinear walls separated by a short extraction dropout", () => {
+    const merged = closeCollinearGaps([run(0, 0, 4, 0), run(4.45, 0, 10, 0)]);
     expect(merged).toHaveLength(1);
     expect(merged[0].sx).toBeCloseTo(0, 9);
     expect(merged[0].ex).toBeCloseTo(10, 9);
+  });
+
+  it("preserves a doorway-sized gap instead of walling it shut", () => {
+    const merged = closeCollinearGaps([run(0, 0, 4, 0), run(5, 0, 10, 0)]);
+    expect(merged).toHaveLength(2);
   });
 
   it("refuses to bridge a car porch mouth", () => {
@@ -149,8 +156,9 @@ describe("closeCollinearGaps", () => {
   it("carries the thicker masonry through a bridge", () => {
     const merged = closeCollinearGaps([
       run(0, 0, 4, 0, 0.2),
-      run(5, 0, 10, 0, 0.35),
+      run(4.45, 0, 10, 0, 0.35),
     ]);
+    expect(merged).toHaveLength(1);
     expect(merged[0].depth).toBeCloseTo(0.35, 9);
   });
 });
@@ -394,5 +402,44 @@ describe("full pipeline", () => {
         expect(spans[i][0] - spans[i - 1][1]).toBeGreaterThan(MAX_BRIDGE_GAP_M);
       }
     }
+  });
+});
+
+describe("mergeDoubleWallRuns", () => {
+  it("merges parallel inner/outer face lines into one centreline", () => {
+    const scale = 0.04;
+    const gap = 20 * scale;
+    const merged = mergeDoubleWallRuns(
+      [run(0, 0, 8, 0), run(0, gap, 8, gap)],
+      5 * scale,
+      25 * scale
+    );
+    expect(merged).toHaveLength(1);
+    expect(merged[0].sz).toBeCloseTo(gap / 2, 9);
+    expect(merged[0].sx).toBeCloseTo(0, 9);
+    expect(merged[0].ex).toBeCloseTo(8, 9);
+  });
+
+  it("leaves room partitions several metres apart untouched", () => {
+    const merged = mergeDoubleWallRuns([run(0, 0, 8, 0), run(0, 3.5, 8, 3.5)], 0.1, 0.9);
+    expect(merged).toHaveLength(2);
+  });
+});
+
+describe("collectWallJunctions", () => {
+  it("finds an L-corner where two walls meet", () => {
+    const runs = [run(0, 0, 5, 0), run(5, 0, 5, 4)];
+    const junctions = collectWallJunctions(runs);
+    expect(junctions.length).toBeGreaterThanOrEqual(1);
+    const corner = junctions.find(
+      (j) => Math.hypot(j.x - 5, j.z - 0) < 0.2
+    );
+    expect(corner).toBeDefined();
+  });
+
+  it("finds a T-junction where an endpoint lands on another wall", () => {
+    const runs = [run(0, 2, 8, 2), run(4, 0, 4, 2)];
+    const junctions = collectWallJunctions(runs);
+    expect(junctions.some((j) => Math.hypot(j.x - 4, j.z - 2) < 0.2)).toBe(true);
   });
 });
