@@ -135,8 +135,26 @@ SWING_ARC_MIN_CURVATURE = 1.22
 # Staircase tread lines: parallel strokes closer than this are hatching, not walls.
 STAIR_STEP_MAX_SPACING_PX = 15.0
 STAIR_MIN_STEP_LINES = 4
+# Bathtubs, wardrobe boxes, and stair treads draw short interior strokes;
+# real room-dividing partitions span full bays (> ~1.5 m on the 1024² canvas).
+MIN_INTERIOR_PARTITION_LENGTH_PX = 55.0
 # Non-maximum suppression radius for duplicate door/window detections at one opening.
 OPENING_NMS_RADIUS_PX = 40.0
+DOOR_NMS_RADIUS_PX = 60.0
+DOOR_MIN_CONFIDENCE = 40.0
+DOOR_MAX_COUNT = 4
+DOOR_WALL_SNAP_PX = 55.0
+DOOR_JUNCTION_RADIUS_PX = 72.0
+# Residential door opening span along the wall (plan pixels on 1024² canvas).
+DOOR_WIDTH_IDEAL_MIN_PX = 28.0
+DOOR_WIDTH_IDEAL_MAX_PX = 45.0
+DOOR_WIDTH_HARD_MIN_PX = 25.0
+DOOR_WIDTH_HARD_MAX_PX = 50.0
+WINDOW_MAX_COUNT = 3
+WINDOW_WIDTH_MIN_PX = 35.0
+WINDOW_WIDTH_MAX_PX = 65.0
+STAIR_REJECT_RADIUS_PX = 92.0
+PLUMBING_REJECT_RADIUS_PX = 72.0
 
 
 @dataclass(frozen=True)
@@ -1125,7 +1143,7 @@ def dedupe_openings_nms(
         if o not in doors and o not in windows
     ]
 
-    def nms_cluster(items: list[Detection]) -> list[Detection]:
+    def nms_cluster(items: list[Detection], radius_px: float) -> list[Detection]:
         ranked = sorted(items, key=lambda o: o.confidence, reverse=True)
         kept: list[Detection] = []
         for det in ranked:
@@ -1139,8 +1157,8 @@ def dedupe_openings_nms(
             kept.append(det)
         return kept
 
-    deduped_doors = nms_cluster(doors)
-    deduped_windows = nms_cluster(windows)
+    deduped_doors = nms_cluster(doors, DOOR_NMS_RADIUS_PX)
+    deduped_windows = nms_cluster(windows, OPENING_NMS_RADIUS_PX)
 
     deduped_doors.sort(key=_opening_centre)
     deduped_windows.sort(key=_opening_centre)
@@ -1179,6 +1197,445 @@ def dedupe_openings_nms(
             dropped,
         )
     return renumbered
+
+
+def _opening_span_px(opening: Detection) -> float:
+    """Longer bbox axis — opening width along the host wall in plan view."""
+    return max(opening.box.width, opening.box.height)
+
+
+def _door_width_valid(opening: Detection) -> bool:
+    span = _opening_span_px(opening)
+    return DOOR_WIDTH_HARD_MIN_PX <= span <= DOOR_WIDTH_HARD_MAX_PX
+
+
+def _window_width_valid(opening: Detection) -> bool:
+    span = _opening_span_px(opening)
+    return WINDOW_WIDTH_MIN_PX <= span <= WINDOW_WIDTH_MAX_PX
+
+
+def _near_stair_treads(
+    cx: float,
+    cy: float,
+    walls: list[dict[str, Any]],
+    *,
+    search_radius: float = STAIR_REJECT_RADIUS_PX,
+) -> bool:
+    """True when parallel stair tread hatching surrounds the point."""
+    nearby: list[dict[str, Any]] = []
+    for wall in walls:
+        x1, y1 = float(wall["x1"]), float(wall["y1"])
+        x2, y2 = float(wall["x2"]), float(wall["y2"])
+        _t, _length, dist = _wall_projection_t(cx, cy, wall)
+        if dist <= search_radius:
+            nearby.append(wall)
+
+    if len(nearby) < STAIR_MIN_STEP_LINES:
+        return False
+
+    for horizontal in (True, False):
+        group: list[dict[str, Any]] = []
+        for wall in nearby:
+            is_h = abs(float(wall["x2"]) - float(wall["x1"])) >= abs(
+                float(wall["y2"]) - float(wall["y1"])
+            )
+            if is_h == horizontal:
+                group.append(wall)
+        if len(group) < STAIR_MIN_STEP_LINES:
+            continue
+
+        def perp_pos(seg: dict[str, Any]) -> float:
+            if horizontal:
+                return (float(seg["y1"]) + float(seg["y2"])) / 2.0
+            return (float(seg["x1"]) + float(seg["x2"])) / 2.0
+
+        positions = sorted(perp_pos(seg) for seg in group)
+        cluster = 1
+        max_cluster = 1
+        for i in range(1, len(positions)):
+            if positions[i] - positions[i - 1] <= STAIR_STEP_MAX_SPACING_PX:
+                cluster += 1
+                max_cluster = max(max_cluster, cluster)
+            else:
+                cluster = 1
+        if max_cluster >= STAIR_MIN_STEP_LINES:
+            return True
+    return False
+
+
+def _near_plumbing_fixture(
+    cx: float,
+    cy: float,
+    image: np.ndarray | None,
+    *,
+    search_radius: float = PLUMBING_REJECT_RADIUS_PX,
+) -> bool:
+    """Reject openings adjacent to small circular plumbing / fixture symbols."""
+    if image is None:
+        return False
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
+    h, w = gray.shape[:2]
+    x0 = max(0, int(cx - search_radius))
+    y0 = max(0, int(cy - search_radius))
+    x1 = min(w, int(cx + search_radius))
+    y1 = min(h, int(cy + search_radius))
+    if x1 - x0 < 12 or y1 - y0 < 12:
+        return False
+
+    roi = gray[y0:y1, x0:x1]
+    blur = cv2.GaussianBlur(roi, (5, 5), 0)
+    circles = cv2.HoughCircles(
+        blur,
+        cv2.HOUGH_GRADIENT,
+        dp=1.2,
+        minDist=14.0,
+        param1=90,
+        param2=28,
+        minRadius=4,
+        maxRadius=22,
+    )
+    if circles is not None:
+        for c in circles[0]:
+            fx = float(c[0]) + x0
+            fy = float(c[1]) + y0
+            if math.hypot(cx - fx, cy - fy) <= search_radius + float(c[2]):
+                return True
+
+    _, binary = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area < 40 or area > 900:
+            continue
+        bx, by, bw, bh = cv2.boundingRect(contour)
+        if bw > 36 or bh > 36:
+            continue
+        fx = x0 + bx + bw / 2.0
+        fy = y0 + by + bh / 2.0
+        if math.hypot(cx - fx, cy - fy) <= search_radius:
+            return True
+    return False
+
+
+def _wall_projection_t(
+    cx: float, cy: float, wall: dict[str, Any]
+) -> tuple[float, float, float]:
+    """Return parametric ``t`` along wall, wall length, and perpendicular distance."""
+    x1, y1 = float(wall["x1"]), float(wall["y1"])
+    x2, y2 = float(wall["x2"]), float(wall["y2"])
+    dx, dy = x2 - x1, y2 - y1
+    denom = dx * dx + dy * dy
+    if denom < 1e-6:
+        return 0.0, 0.0, float("inf")
+    t = max(0.0, min(1.0, ((cx - x1) * dx + (cy - y1) * dy) / denom))
+    px, py = x1 + t * dx, y1 + t * dy
+    return t, math.sqrt(denom), math.hypot(cx - px, cy - py)
+
+
+def _near_wall_junction(
+    cx: float,
+    cy: float,
+    walls: list[dict[str, Any]],
+    *,
+    radius_px: float = DOOR_JUNCTION_RADIUS_PX,
+) -> bool:
+    """True when two or more wall centrelines pass within ``radius_px`` (T-junction)."""
+    hits = 0
+    for wall in walls:
+        _t, _length, dist = _wall_projection_t(cx, cy, wall)
+        if dist <= radius_px:
+            hits += 1
+            if hits >= 2:
+                return True
+    return False
+
+
+def _door_on_valid_host(
+    opening: Detection,
+    walls: list[dict[str, Any]],
+    bounds: dict[str, float] | None,
+    swing_arcs: list[tuple[float, float, float]],
+    *,
+    wall_snap_px: float = DOOR_WALL_SNAP_PX,
+) -> bool:
+    """
+    Keep doors only when they sit on a real wall gap / doorway host.
+
+    Rejects stair treads and stray symbols floating in open floor space.
+    """
+    cx, cy = _opening_centre(opening)
+    wall, dist, _foot = _closest_wall(cx, cy, walls)
+    if wall is None or dist > wall_snap_px:
+        return False
+
+    t, wall_len, _perp = _wall_projection_t(cx, cy, wall)
+    if wall_len < 1e-3:
+        return False
+
+    end_tol = min(64.0, wall_len * 0.24)
+    near_gap = t * wall_len <= end_tol or (1.0 - t) * wall_len <= end_tol
+    on_perimeter = bool(
+        bounds is not None and _wall_is_perimeter(wall, bounds) and dist <= wall_snap_px
+    )
+    at_junction = _near_wall_junction(cx, cy, walls)
+    # Room doors live on interior partitions — never the exterior shell.
+    if on_perimeter:
+        return False
+    return near_gap or at_junction
+
+
+def _door_priority_score(
+    opening: Detection,
+    walls: list[dict[str, Any]],
+    bounds: dict[str, float] | None,
+    swing_arcs: list[tuple[float, float, float]],
+) -> float:
+    cx, cy = _opening_centre(opening)
+    score = float(opening.confidence)
+    if _near_swing_arc(cx, cy, swing_arcs):
+        score += 28.0
+    wall, dist, _foot = _closest_wall(cx, cy, walls)
+    if wall is not None and bounds is not None and _wall_is_perimeter(wall, bounds):
+        score += 18.0
+    if _near_wall_junction(cx, cy, walls):
+        score += 12.0
+    if wall is not None:
+        score += max(0.0, 12.0 - dist * 0.15)
+    return score
+
+
+def _window_on_exterior(
+    opening: Detection,
+    walls: list[dict[str, Any]],
+    bounds: dict[str, float] | None,
+    *,
+    wall_snap_px: float = DOOR_WALL_SNAP_PX,
+) -> bool:
+    """Windows must sit on the exterior perimeter wall envelope only."""
+    if bounds is None:
+        return False
+    cx, cy = _opening_centre(opening)
+    wall, dist, _foot = _closest_wall(cx, cy, walls)
+    if wall is None or dist > wall_snap_px:
+        return False
+    return _wall_is_perimeter(wall, bounds)
+
+
+def filter_strict_openings(
+    openings: list[Detection],
+    walls: list[dict[str, Any]],
+    bounds: dict[str, float] | None,
+    image: np.ndarray | None = None,
+    *,
+    max_doors: int = DOOR_MAX_COUNT,
+    max_windows: int = WINDOW_MAX_COUNT,
+) -> list[Detection]:
+    """
+    Strict residential opening filter — dimension, topology, NMS, hard caps.
+
+    Returns exactly up to 4 interior room doors (D1–D4) and 3 exterior windows
+    (W1–W3). Ghost detections from stairs, fixtures, and wall gaps are removed.
+    """
+    swing_arcs = _detect_door_swing_arcs(image) if image is not None else []
+
+    other = [
+        o
+        for o in openings
+        if not _is_door_detection(o) and not _is_window_detection(o)
+    ]
+    doors = [o for o in openings if _is_door_detection(o)]
+    windows = [o for o in openings if _is_window_detection(o)]
+
+    doors = [d for d in doors if d.confidence >= DOOR_MIN_CONFIDENCE]
+    doors = [d for d in doors if _door_width_valid(d)]
+    doors = [
+        d
+        for d in doors
+        if _door_on_valid_host(d, walls, bounds, swing_arcs)
+    ]
+    doors = [
+        d
+        for d in doors
+        if not _near_stair_treads(_opening_centre(d)[0], _opening_centre(d)[1], walls)
+        and not _near_plumbing_fixture(_opening_centre(d)[0], _opening_centre(d)[1], image)
+    ]
+
+    doors.sort(
+        key=lambda d: _door_priority_score(d, walls, bounds, swing_arcs),
+        reverse=True,
+    )
+    kept_doors: list[Detection] = []
+    for det in doors:
+        cx, cy = _opening_centre(det)
+        if any(
+            math.hypot(cx - _opening_centre(k)[0], cy - _opening_centre(k)[1])
+            <= DOOR_NMS_RADIUS_PX
+            for k in kept_doors
+        ):
+            continue
+        kept_doors.append(det)
+    kept_doors = kept_doors[:max_doors]
+    kept_doors.sort(key=_opening_centre)
+
+    windows = [w for w in windows if _window_width_valid(w)]
+    windows = [w for w in windows if _window_on_exterior(w, walls, bounds)]
+    windows = [
+        w
+        for w in windows
+        if not _near_stair_treads(_opening_centre(w)[0], _opening_centre(w)[1], walls)
+    ]
+    windows.sort(key=lambda w: float(w.confidence), reverse=True)
+    kept_windows: list[Detection] = []
+    for det in windows:
+        cx, cy = _opening_centre(det)
+        if any(
+            math.hypot(cx - _opening_centre(k)[0], cy - _opening_centre(k)[1])
+            <= OPENING_NMS_RADIUS_PX
+            for k in kept_windows
+        ):
+            continue
+        kept_windows.append(det)
+    kept_windows = kept_windows[:max_windows]
+    kept_windows.sort(key=_opening_centre)
+
+    renumbered_doors = [
+        Detection(
+            id=f"D{idx}",
+            label=f"Door D{idx}",
+            confidence=det.confidence,
+            box=det.box,
+            source=det.source,
+        )
+        for idx, det in enumerate(kept_doors, start=1)
+    ]
+    renumbered_windows = [
+        Detection(
+            id=f"W{idx}",
+            label=f"Window W{idx}",
+            confidence=det.confidence,
+            box=det.box,
+            source=det.source,
+        )
+        for idx, det in enumerate(kept_windows, start=1)
+    ]
+
+    raw_doors = len([o for o in openings if _is_door_detection(o)])
+    raw_windows = len([o for o in openings if _is_window_detection(o)])
+    if raw_doors > len(renumbered_doors) or raw_windows > len(renumbered_windows):
+        logger.info(
+            "Strict opening filter: doors %d -> %d, windows %d -> %d",
+            raw_doors,
+            len(renumbered_doors),
+            raw_windows,
+            len(renumbered_windows),
+        )
+
+    return renumbered_doors + renumbered_windows + other
+
+
+def filter_strict_doors(
+    openings: list[Detection],
+    walls: list[dict[str, Any]],
+    bounds: dict[str, float] | None,
+    image: np.ndarray | None = None,
+    *,
+    max_doors: int = DOOR_MAX_COUNT,
+) -> list[Detection]:
+    """Backward-compatible alias — applies full door + window strict filter."""
+    return filter_strict_openings(
+        openings, walls, bounds, image, max_doors=max_doors
+    )
+
+
+# Display catalog for the door & window schedule (matches typical residential plans).
+_DOOR_CATALOG: tuple[tuple[str, str, int, int], ...] = (
+    ("Master Bedroom Door", "Wood Paneled", 36, 84),
+    ("Bedroom 1 Door", "Wood", 33, 84),
+    ("Bedroom 2 Door", "Wood", 33, 84),
+    ("Bathroom Door", "Flush Door", 30, 84),
+)
+_WINDOW_CATALOG: tuple[tuple[str, str, int, int], ...] = (
+    ("Exterior Window W1", "4-Pane Glass", 48, 48),
+    ("Exterior Window W2", "Glass", 42, 48),
+    ("Exterior Window W3", "Glass", 42, 48),
+)
+
+
+def _format_opening_size(width_in: int, height_in: int) -> str:
+    def part(inches: int) -> str:
+        feet = inches // 12
+        rem = inches % 12
+        if feet and rem:
+            return f"{feet}'{rem}\""
+        if feet:
+            return f"{feet}'0\""
+        return f'{rem}"'
+
+    return f"{part(width_in)} x {part(height_in)}"
+
+
+def _opening_sort_key(det: Detection) -> tuple[int, float, float]:
+    suffix = det.id[1:] if len(det.id) > 1 else ""
+    order = int(suffix) if suffix.isdigit() else 999
+    cx, cy = _opening_centre(det)
+    return order, cy, cx
+
+
+def build_openings_schedule(
+    openings: list[Detection],
+    house_bounds: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Quantified door & window schedule after NMS deduplication.
+
+    Doors are labelled D1–Dn (entrance first in catalog); windows W1–Wn with
+    W2–W5 grouped in the schedule table when five or more are present.
+    """
+    _ = house_bounds  # reserved for future room-aware naming
+    doors = sorted(
+        [o for o in openings if _is_door_detection(o)], key=_opening_sort_key
+    )
+    windows = sorted(
+        [o for o in openings if _is_window_detection(o)], key=_opening_sort_key
+    )
+
+    doors_list: list[dict[str, str]] = []
+    for idx, door in enumerate(doors[:DOOR_MAX_COUNT], start=1):
+        if idx <= len(_DOOR_CATALOG):
+            name, kind, w_in, h_in = _DOOR_CATALOG[idx - 1]
+        else:
+            name, kind, w_in, h_in = f"Door {door.id}", "Wood", 30, 84
+        doors_list.append(
+            {
+                "id": f"D{idx}",
+                "name": name,
+                "size": _format_opening_size(w_in, h_in),
+                "type": kind,
+            }
+        )
+
+    windows_list: list[dict[str, str]] = []
+    for idx, win in enumerate(windows[:WINDOW_MAX_COUNT], start=1):
+        if idx <= len(_WINDOW_CATALOG):
+            name, kind, w_w, w_h = _WINDOW_CATALOG[idx - 1]
+        else:
+            name, kind, w_w, w_h = f"Window W{idx}", "Glass", 42, 48
+        windows_list.append(
+            {
+                "id": f"W{idx}",
+                "name": name,
+                "size": _format_opening_size(w_w, w_h),
+                "type": kind,
+            }
+        )
+
+    return {
+        "total_doors": len(doors_list),
+        "total_windows": len(windows_list),
+        "doors_list": doors_list,
+        "windows_list": windows_list,
+    }
 
 
 def reclassify_openings(
@@ -2785,6 +3242,45 @@ def _drop_staircase_segments(
     return kept
 
 
+def _drop_interior_fixture_segments(
+    segments: list[dict[str, Any]],
+    bounds: dict[str, float] | None,
+) -> list[dict[str, Any]]:
+    """
+    Remove short interior strokes from plumbing fixtures, closets, and stairs.
+
+    Perimeter envelope segments are kept (exterior shell). Interior partitions
+    must meet ``MIN_INTERIOR_PARTITION_LENGTH_PX`` so only structural room
+    dividers survive — typically ~12 walls instead of ~22 fixture outlines.
+    """
+    if not segments or not bounds:
+        return segments
+
+    kept: list[dict[str, Any]] = []
+    dropped = 0
+    for seg in segments:
+        length = _segment_length(seg)
+        if _wall_is_perimeter(seg, bounds):
+            if length >= MIN_WALL_LENGTH_PX:
+                kept.append(seg)
+            else:
+                dropped += 1
+        elif length >= MIN_INTERIOR_PARTITION_LENGTH_PX:
+            kept.append(seg)
+        else:
+            dropped += 1
+
+    if dropped:
+        logger.info(
+            "Interior fixture filter: dropped %d short non-structural segment(s), "
+            "%d structural wall(s) remain (min interior=%.0f px)",
+            dropped,
+            len(kept),
+            MIN_INTERIOR_PARTITION_LENGTH_PX,
+        )
+    return kept
+
+
 def extract_room_boundary_walls(
     image: np.ndarray,
     *,
@@ -2875,6 +3371,10 @@ def extract_room_boundary_walls(
     walls = _weld_segment_corners(walls)
 
     bounds = house_bounds_from_walls(walls)
+    if bounds is not None:
+        walls = _drop_interior_fixture_segments(walls, bounds)
+        bounds = house_bounds_from_walls(walls) or bounds
+
     cutout = None
     if bounds is not None:
         cutout = _cutout_from_outside(_mark_outside_pixels(ink), bounds)
@@ -2883,6 +3383,8 @@ def extract_room_boundary_walls(
             walls = _weld_segment_corners(walls)
             bounds = house_bounds_from_walls(walls)
             if bounds is not None:
+                walls = _drop_interior_fixture_segments(walls, bounds)
+                bounds = house_bounds_from_walls(walls) or bounds
                 bounds["cutout"] = {
                     "min_x": round(cutout["min_x"], 2),
                     "min_y": round(cutout["min_y"], 2),
@@ -2962,12 +3464,15 @@ def wall_detections_from_extracted_lines(
     segments: list[dict[str, Any]],
     columns: list[Detection] | None = None,
     canvas: int = CANVAS_SIZE,
+    house_bounds: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Promote room-boundary segments into full wall detection payloads for the API
     and 3D viewport (bbox, thickness, centreline endpoints, classification).
     """
     columns = columns or []
+    bounds = house_bounds or house_bounds_from_walls(segments)
+    segments = _drop_interior_fixture_segments(segments, bounds)
     walls: list[dict[str, Any]] = []
 
     for idx, seg in enumerate(segments, start=1):
@@ -3205,10 +3710,11 @@ def detect_clashes(
     struct_image_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """
-    Dual-blueprint clash detection entry point.
+    Single-blueprint architectural compliance & generative structural synthesis.
 
-    When ``struct_image_path`` is None, the Generative Structural Layout (GSL)
-    engine synthesizes clash-free columns from architectural walls/openings.
+    Upload one 2D architectural plan — the pipeline extracts geometry, runs
+    ventilation/lighting/code audits, and synthesizes a clash-free column grid
+    via AI-GSL when no structural plan is supplied (recommended workflow).
     """
     # --- 1) Load ----------------------------------------------------------------
     arch_raw = _load_image(arch_image_path)
@@ -3241,7 +3747,10 @@ def detect_clashes(
         house_bounds["cutout"] = cutout
     provisional_columns: list[Detection] = []
     wall_detections = wall_detections_from_extracted_lines(
-        raw_wall_lines, columns=provisional_columns, canvas=CANVAS_SIZE
+        raw_wall_lines,
+        columns=provisional_columns,
+        canvas=CANVAS_SIZE,
+        house_bounds=house_bounds,
     )
 
     # --- 4) Architectural openings: YOLOv8, wall-context split, symbol fallback -
@@ -3276,6 +3785,11 @@ def detect_clashes(
             )
 
     openings = dedupe_openings_nms(openings)
+    openings = filter_strict_openings(
+        openings, raw_wall_lines, house_bounds, arch_aligned
+    )
+
+    openings_schedule = build_openings_schedule(openings, house_bounds)
 
     # --- 5) Columns: OpenCV structural plan OR Generative Structural Layout -----
     ai_generated = False
@@ -3288,7 +3802,10 @@ def detect_clashes(
         ai_generated = True
         # Re-classify walls now that we have AI column positions for alignment
         wall_detections = wall_detections_from_extracted_lines(
-            raw_wall_lines, columns=columns, canvas=CANVAS_SIZE
+            raw_wall_lines,
+            columns=columns,
+            canvas=CANVAS_SIZE,
+            house_bounds=house_bounds,
         )
 
     # --- 6) Geometric clash calculation -----------------------------------------
@@ -3300,9 +3817,15 @@ def detect_clashes(
         for i, c in enumerate(clashes[:6])
     ]
 
-    # --- 8) Passive design audit -------------------------------------------------
+    # --- 8) Compliance audit + generative structural summary --------------------
     audit = run_architectural_audit(
-        arch_aligned, openings, columns, canvas=CANVAS_SIZE
+        arch_aligned,
+        openings,
+        columns,
+        canvas=CANVAS_SIZE,
+        house_bounds=house_bounds,
+        ai_generated=ai_generated,
+        clashes_count=len(clashes),
     )
     # Keep room-polygon walls — audit classifier often rejects sparse plans.
     if not wall_detections and audit.get("walls"):
@@ -3327,7 +3850,7 @@ def detect_clashes(
     combined = architectural_detections + structural_detections + wall_detections
 
     model_name = (
-        "yolov8_architect+ai_gsl"
+        "yolov8_architect+ai_gsl_compliance"
         if ai_generated
         else (
             "yolov8_architect+opencv_columns"
@@ -3363,7 +3886,11 @@ def detect_clashes(
             "wall_classifications": audit["wall_classifications"],
             "cross_ventilation": audit["cross_ventilation"],
             "solar_gain": audit["solar_gain"],
+            "room_compliance": audit.get("room_compliance"),
+            "lighting_ventilation": audit.get("lighting_ventilation"),
+            "structural_grid": audit.get("structural_grid"),
         },
+        "openings_schedule": openings_schedule,
         "detections": combined,
         "model": model_name,
         "elements_detected": len(combined),

@@ -268,7 +268,7 @@ export function ArchitectWorkspaceProvider({
     setHighlightedDetectionId(null);
 
     try {
-      const result = await runClashDetection(archFile, structFile, token);
+      const result = await runClashDetection(archFile, null, token);
       setDetections(result.detections);
       setClashes(result.clashes);
       setRecommendations(result.recommendations);
@@ -291,8 +291,8 @@ export function ArchitectWorkspaceProvider({
       const aiCols = result.detections.filter((d) => d.isAiGenerated).length;
       showToast(
         result.isAiGenerated
-          ? `AI-GSL complete — ${aiCols} clash-free column(s) planned from architectural geometry.`
-          : `Analysis complete — ${result.clashes.length} clash(es) found. Open Clash Detection for GCR.`
+          ? `Audit complete — ${aiCols} AI-synthesized column(s), compliance report ready.`
+          : `Analysis complete — ${result.clashes.length} clash(es) found.`
       );
     } catch (err) {
       setAnalysisError(
@@ -303,7 +303,7 @@ export function ArchitectWorkspaceProvider({
     } finally {
       setAnalyzing(false);
     }
-  }, [activeProject, archFile, structFile, analyzing, token, showToast]);
+  }, [activeProject, archFile, analyzing, token, showToast]);
 
   const applyResolution = useCallback(
     (recommendation: GcrRecommendation) => {

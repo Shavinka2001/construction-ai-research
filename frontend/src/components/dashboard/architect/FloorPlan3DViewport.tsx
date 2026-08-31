@@ -5,22 +5,25 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { Eye, Footprints, Moon, Sun, X } from "lucide-react";
-import type { DetectionBox } from "@/lib/clash-detection";
+import { OpeningsScheduleCard } from "@/components/dashboard/architect/OpeningsScheduleCard";
+import type { DetectionBox, OpeningsSchedule } from "@/lib/clash-detection";
 import {
   MIN_WALL_RUN_M,
   anchorOpeningToRun,
   boundsFromRuns,
   buildOrthogonalLayout,
+  collapseCoplanarRuns,
   collectWallJunctions,
-  exteriorRunIndices,
   findCornerCutout,
   gapSpans,
   mergeSpans,
   runAxis,
   runLength,
   trimRunsAgainstCutout,
+  weldRunCorners,
   type CornerCutout,
   type Span,
+  type WallAnchor,
   type WallBounds,
   type WallRun,
 } from "@/lib/wall-runs";
@@ -93,6 +96,7 @@ export type Blueprint3DData = {
   architectural_detections?: BlueprintDetection[];
   structural_detections?: BlueprintDetection[];
   house_bounds?: HouseBounds | null;
+  openings_schedule?: OpeningsSchedule | null;
 };
 
 export interface FloorPlan3DViewportProps {
@@ -100,6 +104,7 @@ export interface FloorPlan3DViewportProps {
   detections?: DetectionBox[];
   recommendations?: unknown[];
   architecturalAudit?: unknown;
+  openingsSchedule?: OpeningsSchedule | null;
   viewMode?: MaquetteViewMode;
   hasLiveResult?: boolean;
   className?: string;
@@ -111,7 +116,7 @@ export interface FloorPlan3DViewportProps {
 // Architectural constants
 // ---------------------------------------------------------------------------
 
-const WALL_HEIGHT = 2.6;
+const WALL_HEIGHT = 2.8;
 /** Dark trim cap along the top face of every wall (dollhouse view). */
 const WALL_CAP_HEIGHT = 0.045;
 /** Uniform masonry depth for a clean architectural read. */
@@ -122,7 +127,7 @@ const RIDGE_Y = WALL_HEIGHT + 1.75;
 const EAVE_OVERHANG = 0.4;
 const DOOR_OPEN_ANGLE = (30 * Math.PI) / 180;
 const EYE_LEVEL = 1.62;
-const SLAB_PAD = 0.8;
+const SLAB_PAD = 0.5;
 
 // Door assembly: the leaf plus its jambs define how wide a hole the masonry
 // needs, so the frame always lands inside a real opening.
@@ -137,16 +142,38 @@ const WINDOW_CENTER_Y = 1.55;
 const OPENING_CUT_PAD = 0.09;
 /** NMS radius — duplicate detections within this plan distance merge to one opening. */
 const OPENING_NMS_PX = 40;
+const DOOR_NMS_PX = 60;
+const DOOR_MIN_CONFIDENCE = 40;
+const DOOR_MAX_COUNT = 4;
+const DOOR_WALL_SNAP_PX = 55;
+const DOOR_JUNCTION_RADIUS_PX = 72;
+const DOOR_WIDTH_HARD_MIN_PX = 25;
+const DOOR_WIDTH_HARD_MAX_PX = 50;
+const WINDOW_MAX_COUNT = 3;
+const WINDOW_WIDTH_MIN_PX = 35;
+const WINDOW_WIDTH_MAX_PX = 65;
+const STAIR_REJECT_RADIUS_PX = 92;
 const OPENING_NMS_M = 0.8;
 
 /** Architectural dimension line height above the floor slab. */
 const DIM_LINE_Y = 0.12;
-const DIM_OFFSET_M = 0.42;
+const DIM_OFFSET_M = 0.78;
+const DIM_OFFSET_TIER_M = 0.32;
+const DIM_LABEL_PUSH_M = 0.28;
 const DIM_TICK_M = 0.08;
-/** Only dimension walls longer than this (metres). */
-const MIN_DIMENSION_WALL_M = 1.75;
+/** Only dimension major perimeter walls and primary partitions (metres). */
+const MIN_DIMENSION_WALL_M = 2.0;
 const MIN_ROOM_AREA_SQ_M = 3.5;
 const MIN_ROOM_CELL_M = 0.85;
+
+/** Tolerance for deduplicating blueprint strokes that sit on the envelope. */
+const PERIMETER_DEDUPE_TOL = 0.4;
+/** Snap interior partition endpoints to the exterior shell. */
+const INTERIOR_SNAP_DIST = 0.42;
+/** Max distance a detected opening may be from a perimeter wall. */
+const PERIMETER_OPENING_SNAP_M = 1.65;
+
+type PerimeterSide = "back" | "front" | "left" | "right";
 
 // ---------------------------------------------------------------------------
 // Lifecycle helpers
@@ -271,6 +298,10 @@ type PixelBounds = { minX: number; minY: number; maxX: number; maxY: number };
 
 /** Longest world-space dimension the plan is fitted into, in metres. */
 const PLAN_WORLD_SPAN = 18;
+/** Bathtubs, closets, and stair treads — not structural room dividers (px on 1024²). */
+const MIN_INTERIOR_PARTITION_PX = 55;
+/** Exterior shell classification tolerance — mirrors backend PERIMETER_WALL_TOL_PX. */
+const PERIMETER_EDGE_TOL_PX = 14;
 /**
  * A footprint smaller than this fraction of the canvas is treated as a bad
  * measurement (stray stroke) and we fall back to the full image.
@@ -374,6 +405,43 @@ function wallEndpoints(wall: BlueprintWall): { x1: number; y1: number; x2: numbe
   return { x1, y1, x2, y2 };
 }
 
+function wallSegmentLengthPx(seg: { x1: number; y1: number; x2: number; y2: number }): number {
+  return Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1);
+}
+
+function perimeterTolerancePx(bounds: PixelBounds): number {
+  const span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+  return Math.max(6, Math.min(PERIMETER_EDGE_TOL_PX, span * 0.028));
+}
+
+function isPerimeterWallSegment(
+  seg: { x1: number; y1: number; x2: number; y2: number },
+  bounds: PixelBounds
+): boolean {
+  const tol = perimeterTolerancePx(bounds);
+  const horizontal = Math.abs(seg.x2 - seg.x1) >= Math.abs(seg.y2 - seg.y1);
+  if (horizontal) {
+    const y = (seg.y1 + seg.y2) / 2;
+    return Math.abs(y - bounds.minY) <= tol || Math.abs(y - bounds.maxY) <= tol;
+  }
+  const x = (seg.x1 + seg.x2) / 2;
+  return Math.abs(x - bounds.minX) <= tol || Math.abs(x - bounds.maxX) <= tol;
+}
+
+/** Keep perimeter envelope strokes; drop short interior fixture outlines. */
+function filterStructuralWallSegments(
+  walls: BlueprintWall[] | undefined,
+  house: PixelBounds | null
+): BlueprintWall[] {
+  return (walls ?? []).filter((wall) => {
+    const seg = wallEndpoints(wall);
+    if (!seg) return false;
+    const len = wallSegmentLengthPx(seg);
+    if (house && isPerimeterWallSegment(seg, house)) return true;
+    return len >= MIN_INTERIOR_PARTITION_PX;
+  });
+}
+
 /**
  * Center from bbox — supports:
  * - [ymin, xmin, ymax, xmax] (YOLO-style)
@@ -462,6 +530,24 @@ function detectionLabel(det: BlueprintDetection): string {
   return String(det.label ?? det.class_name ?? det.id ?? det.kind ?? "").toLowerCase();
 }
 
+function isDoorDetection(det: BlueprintDetection): boolean {
+  const id = String(det.id ?? "").toUpperCase();
+  return id.startsWith("D") || detectionLabel(det).includes("door");
+}
+
+function isWindowDetection(det: BlueprintDetection): boolean {
+  const id = String(det.id ?? "").toUpperCase();
+  return id.startsWith("W") || detectionLabel(det).includes("window");
+}
+
+function openingIdSort(a: BlueprintDetection, b: BlueprintDetection): number {
+  const idA = String(a.id ?? a.label ?? "");
+  const idB = String(b.id ?? b.label ?? "");
+  const numA = Number.parseInt(idA.replace(/\D/g, ""), 10) || 999;
+  const numB = Number.parseInt(idB.replace(/\D/g, ""), 10) || 999;
+  return numA - numB;
+}
+
 function openingConfidence(det: BlueprintDetection): number {
   const raw = det.confidence;
   if (typeof raw === "number" && Number.isFinite(raw)) return raw;
@@ -472,50 +558,398 @@ function openingConfidence(det: BlueprintDetection): number {
   return 50;
 }
 
-/**
- * Spatial NMS for door/window detections before 3D mounting.
- *
- * Multiple YOLO boxes on one doorway become a single frame + one wall cut.
- */
-function dedupeOpeningDetections(
+function pointToSegmentDistance(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 1e-6) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const qx = x1 + t * dx;
+  const qy = y1 + t * dy;
+  return Math.hypot(px - qx, py - qy);
+}
+
+function wallProjectionT(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): { t: number; length: number; dist: number } {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq < 1e-6) return { t: 0, length: 0, dist: Infinity };
+  let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const qx = x1 + t * dx;
+  const qy = y1 + t * dy;
+  return { t, length: Math.sqrt(lenSq), dist: Math.hypot(px - qx, py - qy) };
+}
+
+function nearWallJunction(
+  px: number,
+  py: number,
+  walls: BlueprintWall[],
+  radiusPx = DOOR_JUNCTION_RADIUS_PX
+): boolean {
+  let hits = 0;
+  for (const wall of walls) {
+    const seg = wallEndpoints(wall);
+    if (!seg) continue;
+    const { dist } = wallProjectionT(px, py, seg.x1, seg.y1, seg.x2, seg.y2);
+    if (dist <= radiusPx) {
+      hits++;
+      if (hits >= 2) return true;
+    }
+  }
+  return false;
+}
+
+function closestWallFootprint(
+  px: number,
+  py: number,
+  walls: BlueprintWall[]
+): { wall: BlueprintWall; dist: number; seg: { x1: number; y1: number; x2: number; y2: number } } | null {
+  let best: {
+    wall: BlueprintWall;
+    dist: number;
+    seg: { x1: number; y1: number; x2: number; y2: number };
+  } | null = null;
+
+  for (const wall of walls) {
+    const seg = wallEndpoints(wall);
+    if (!seg) continue;
+    const dist = pointToSegmentDistance(px, py, seg.x1, seg.y1, seg.x2, seg.y2);
+    if (!best || dist < best.dist) {
+      best = { wall, dist, seg };
+    }
+  }
+  return best;
+}
+
+function openingSpanPx(det: BlueprintDetection, imgW: number, imgH: number): number {
+  const wPx = Math.max(8, parsePercent(det.width, imgW) || 40);
+  const hPx = Math.max(8, parsePercent(det.height, imgH) || 40);
+  return Math.max(wPx, hPx);
+}
+
+function doorWidthValid(det: BlueprintDetection, imgW: number, imgH: number): boolean {
+  const span = openingSpanPx(det, imgW, imgH);
+  return span >= DOOR_WIDTH_HARD_MIN_PX && span <= DOOR_WIDTH_HARD_MAX_PX;
+}
+
+function windowWidthValid(det: BlueprintDetection, imgW: number, imgH: number): boolean {
+  const span = openingSpanPx(det, imgW, imgH);
+  return span >= WINDOW_WIDTH_MIN_PX && span <= WINDOW_WIDTH_MAX_PX;
+}
+
+function nearStairTreads(
+  px: number,
+  py: number,
+  walls: BlueprintWall[],
+  searchRadius = STAIR_REJECT_RADIUS_PX
+): boolean {
+  const nearby: BlueprintWall[] = [];
+  for (const wall of walls) {
+    const seg = wallEndpoints(wall);
+    if (!seg) continue;
+    const { dist } = wallProjectionT(px, py, seg.x1, seg.y1, seg.x2, seg.y2);
+    if (dist <= searchRadius) nearby.push(wall);
+  }
+  if (nearby.length < 4) return false;
+
+  for (const horizontal of [true, false]) {
+    const group = nearby.filter((wall) => {
+      const seg = wallEndpoints(wall);
+      if (!seg) return false;
+      const isH = Math.abs(seg.x2 - seg.x1) >= Math.abs(seg.y2 - seg.y1);
+      return isH === horizontal;
+    });
+    if (group.length < 4) continue;
+
+    const positions = group
+      .map((wall) => {
+        const seg = wallEndpoints(wall)!;
+        return horizontal ? (seg.y1 + seg.y2) / 2 : (seg.x1 + seg.x2) / 2;
+      })
+      .sort((a, b) => a - b);
+
+    let cluster = 1;
+    let maxCluster = 1;
+    for (let i = 1; i < positions.length; i++) {
+      if (positions[i] - positions[i - 1] <= 15) {
+        cluster++;
+        maxCluster = Math.max(maxCluster, cluster);
+      } else {
+        cluster = 1;
+      }
+    }
+    if (maxCluster >= 4) return true;
+  }
+  return false;
+}
+
+function windowOnExterior(
+  det: BlueprintDetection,
+  walls: BlueprintWall[],
+  house: PixelBounds | null,
+  imgW: number,
+  imgH: number
+): boolean {
+  if (!house) return false;
+  const center = detectionCenter(det, imgW, imgH);
+  if (!center) return false;
+  const host = closestWallFootprint(center.cx, center.cy, walls);
+  if (!host || host.dist > DOOR_WALL_SNAP_PX) return false;
+
+  const tol = Math.max(12, Math.min(house.maxX - house.minX, house.maxY - house.minY) * 0.06);
+  const { seg } = host;
+  const horizontal = Math.abs(seg.x2 - seg.x1) >= Math.abs(seg.y2 - seg.y1);
+  if (horizontal) {
+    const y = (seg.y1 + seg.y2) / 2;
+    return Math.abs(y - house.minY) <= tol || Math.abs(y - house.maxY) <= tol;
+  }
+  const x = (seg.x1 + seg.x2) / 2;
+  return Math.abs(x - house.minX) <= tol || Math.abs(x - house.maxX) <= tol;
+}
+
+function doorOnValidHost(
+  det: BlueprintDetection,
+  walls: BlueprintWall[],
+  house: PixelBounds | null,
+  imgW: number,
+  imgH: number,
+  wallSnapPx = DOOR_WALL_SNAP_PX
+): boolean {
+  const center = detectionCenter(det, imgW, imgH);
+  if (!center || walls.length === 0) return false;
+
+  const host = closestWallFootprint(center.cx, center.cy, walls);
+  if (!host || host.dist > wallSnapPx) return false;
+
+  const { t, length } = wallProjectionT(
+    center.cx,
+    center.cy,
+    host.seg.x1,
+    host.seg.y1,
+    host.seg.x2,
+    host.seg.y2
+  );
+  if (length < 1e-3) return false;
+
+  const endTol = Math.min(64, length * 0.24);
+  const nearGap = t * length <= endTol || (1 - t) * length <= endTol;
+
+  let onPerimeter = false;
+  if (house) {
+    const tol = Math.max(12, Math.min(house.maxX - house.minX, house.maxY - house.minY) * 0.06);
+    const { seg } = host;
+    const horizontal = Math.abs(seg.x2 - seg.x1) >= Math.abs(seg.y2 - seg.y1);
+    if (horizontal) {
+      const y = (seg.y1 + seg.y2) / 2;
+      onPerimeter =
+        Math.abs(y - house.minY) <= tol || Math.abs(y - house.maxY) <= tol;
+    } else {
+      const x = (seg.x1 + seg.x2) / 2;
+      onPerimeter =
+        Math.abs(x - house.minX) <= tol || Math.abs(x - house.maxX) <= tol;
+    }
+  }
+
+  const atJunction = nearWallJunction(center.cx, center.cy, walls);
+  if (onPerimeter) return false;
+  return nearGap || atJunction;
+}
+
+function doorPriorityScore(
+  det: BlueprintDetection,
+  walls: BlueprintWall[],
+  house: PixelBounds | null,
+  imgW: number,
+  imgH: number
+): number {
+  const center = detectionCenter(det, imgW, imgH);
+  if (!center) return 0;
+  let score = openingConfidence(det);
+  const host = closestWallFootprint(center.cx, center.cy, walls);
+  if (host) {
+    score += Math.max(0, 12 - host.dist * 0.15);
+    if (house) {
+      const tol = Math.max(12, Math.min(house.maxX - house.minX, house.maxY - house.minY) * 0.06);
+      const { seg } = host;
+      const horizontal = Math.abs(seg.x2 - seg.x1) >= Math.abs(seg.y2 - seg.y1);
+      const onShell = horizontal
+        ? Math.abs((seg.y1 + seg.y2) / 2 - house.minY) <= tol ||
+          Math.abs((seg.y1 + seg.y2) / 2 - house.maxY) <= tol
+        : Math.abs((seg.x1 + seg.x2) / 2 - house.minX) <= tol ||
+          Math.abs((seg.x1 + seg.x2) / 2 - house.maxX) <= tol;
+      if (onShell) score += 18;
+    }
+  }
+  if (nearWallJunction(center.cx, center.cy, walls)) score += 12;
+  return score;
+}
+
+/** Strict filter — max 4 interior doors (D1–D4) and 3 exterior windows (W1–W3). */
+function filterStrictOpenings(
+  detections: BlueprintDetection[],
+  walls: BlueprintWall[],
+  house: PixelBounds | null,
+  imgW: number,
+  imgH: number,
+  maxDoors = DOOR_MAX_COUNT,
+  maxWindows = WINDOW_MAX_COUNT,
+  nmsPx = DOOR_NMS_PX
+): BlueprintDetection[] {
+  const other = detections.filter((d) => !isDoorDetection(d) && !isWindowDetection(d));
+
+  let doors = detections
+    .filter(isDoorDetection)
+    .filter((d) => openingConfidence(d) >= DOOR_MIN_CONFIDENCE)
+    .filter((d) => doorWidthValid(d, imgW, imgH))
+    .filter((d) => doorOnValidHost(d, walls, house, imgW, imgH))
+    .filter((d) => {
+      const c = detectionCenter(d, imgW, imgH);
+      if (!c) return false;
+      return !nearStairTreads(c.cx, c.cy, walls);
+    });
+
+  doors.sort(
+    (a, b) =>
+      doorPriorityScore(b, walls, house, imgW, imgH) -
+      doorPriorityScore(a, walls, house, imgW, imgH)
+  );
+
+  const keptDoors: BlueprintDetection[] = [];
+  for (const det of doors) {
+    const center = detectionCenter(det, imgW, imgH);
+    if (!center) continue;
+    const duplicate = keptDoors.some((k) => {
+      const kc = detectionCenter(k, imgW, imgH);
+      if (!kc) return false;
+      return Math.hypot(center.cx - kc.cx, center.cy - kc.cy) <= nmsPx;
+    });
+    if (duplicate) continue;
+    keptDoors.push(det);
+  }
+
+  const clampedDoors = keptDoors.slice(0, maxDoors);
+  clampedDoors.sort((a, b) => {
+    const ac = detectionCenter(a, imgW, imgH);
+    const bc = detectionCenter(b, imgW, imgH);
+    if (!ac || !bc) return 0;
+    return ac.cy - bc.cy || ac.cx - bc.cx;
+  });
+
+  const numberedDoors = clampedDoors.map((det, i) => ({
+    ...det,
+    id: `D${i + 1}`,
+    label: `Door D${i + 1}`,
+  }));
+
+  let windows = detections
+    .filter(isWindowDetection)
+    .filter((d) => windowWidthValid(d, imgW, imgH))
+    .filter((d) => windowOnExterior(d, walls, house, imgW, imgH))
+    .filter((d) => {
+      const c = detectionCenter(d, imgW, imgH);
+      if (!c) return false;
+      return !nearStairTreads(c.cx, c.cy, walls);
+    });
+
+  windows.sort((a, b) => openingConfidence(b) - openingConfidence(a));
+
+  const keptWindows: BlueprintDetection[] = [];
+  for (const det of windows) {
+    const center = detectionCenter(det, imgW, imgH);
+    if (!center) continue;
+    const duplicate = keptWindows.some((k) => {
+      const kc = detectionCenter(k, imgW, imgH);
+      if (!kc) return false;
+      return Math.hypot(center.cx - kc.cx, center.cy - kc.cy) <= OPENING_NMS_PX;
+    });
+    if (duplicate) continue;
+    keptWindows.push(det);
+  }
+
+  const clampedWindows = keptWindows.slice(0, maxWindows);
+  clampedWindows.sort((a, b) => {
+    const ac = detectionCenter(a, imgW, imgH);
+    const bc = detectionCenter(b, imgW, imgH);
+    if (!ac || !bc) return 0;
+    return ac.cy - bc.cy || ac.cx - bc.cx;
+  });
+
+  const numberedWindows = clampedWindows.map((det, i) => ({
+    ...det,
+    id: `W${i + 1}`,
+    label: `Window W${i + 1}`,
+  }));
+
+  return [...numberedDoors, ...numberedWindows, ...other];
+}
+
+/** @deprecated Use filterStrictOpenings */
+function filterStrictDoors(
+  detections: BlueprintDetection[],
+  walls: BlueprintWall[],
+  house: PixelBounds | null,
+  imgW: number,
+  imgH: number,
+  maxDoors = DOOR_MAX_COUNT,
+  nmsPx = DOOR_NMS_PX
+): BlueprintDetection[] {
+  return filterStrictOpenings(detections, walls, house, imgW, imgH, maxDoors, WINDOW_MAX_COUNT, nmsPx);
+}
+
+/** Spatial NMS for window detections before 3D mounting. */
+function dedupeWindowDetections(
   detections: BlueprintDetection[],
   imgW: number,
   imgH: number,
   nmsPx = OPENING_NMS_PX
 ): BlueprintDetection[] {
-  const doors = detections.filter((d) => detectionLabel(d).includes("door"));
-  const windows = detections.filter((d) => detectionLabel(d).includes("window"));
-  const other = detections.filter(
-    (d) => !detectionLabel(d).includes("door") && !detectionLabel(d).includes("window")
-  );
+  const windows = detections.filter(isWindowDetection);
+  const other = detections.filter((d) => !isWindowDetection(d));
 
-  const nms = (items: BlueprintDetection[], prefix: "D" | "W") => {
-    const ranked = [...items].sort((a, b) => openingConfidence(b) - openingConfidence(a));
-    const kept: BlueprintDetection[] = [];
-    for (const det of ranked) {
-      const center = detectionCenter(det, imgW, imgH);
-      if (!center) continue;
-      const duplicate = kept.some((k) => {
-        const kc = detectionCenter(k, imgW, imgH);
-        if (!kc) return false;
-        return Math.hypot(center.cx - kc.cx, center.cy - kc.cy) <= nmsPx;
-      });
-      if (!duplicate) kept.push(det);
-    }
-    kept.sort((a, b) => {
-      const ac = detectionCenter(a, imgW, imgH);
-      const bc = detectionCenter(b, imgW, imgH);
-      if (!ac || !bc) return 0;
-      return ac.cy - bc.cy || ac.cx - bc.cx;
+  const ranked = [...windows].sort((a, b) => openingConfidence(b) - openingConfidence(a));
+  const kept: BlueprintDetection[] = [];
+  for (const det of ranked) {
+    const center = detectionCenter(det, imgW, imgH);
+    if (!center) continue;
+    const duplicate = kept.some((k) => {
+      const kc = detectionCenter(k, imgW, imgH);
+      if (!kc) return false;
+      return Math.hypot(center.cx - kc.cx, center.cy - kc.cy) <= nmsPx;
     });
-    return kept.map((det, i) => ({
-      ...det,
-      id: `${prefix}${i + 1}`,
-      label: prefix === "D" ? `Door D${i + 1}` : `Window W${i + 1}`,
-    }));
-  };
+    if (duplicate) continue;
+    kept.push(det);
+  }
 
-  return [...nms(doors, "D"), ...nms(windows, "W"), ...other];
+  kept.sort((a, b) => {
+    const ac = detectionCenter(a, imgW, imgH);
+    const bc = detectionCenter(b, imgW, imgH);
+    if (!ac || !bc) return 0;
+    return ac.cy - bc.cy || ac.cx - bc.cx;
+  });
+
+  const numbered = kept.map((det, i) => ({
+    ...det,
+    id: `W${i + 1}`,
+    label: `Window W${i + 1}`,
+  }));
+
+  return [...numbered, ...other];
 }
 
 function wallsFromDetections(
@@ -667,6 +1101,10 @@ function resolveBlueprintData(
     architectural_detections: architectural,
     structural_detections: structural,
     house_bounds: houseBounds,
+    openings_schedule:
+      (raw as Blueprint3DData).openings_schedule ??
+      (raw as { openings_schedule?: OpeningsSchedule }).openings_schedule ??
+      null,
   };
 }
 
@@ -1084,12 +1522,9 @@ function addDynamicRoofAndSlab(
 }
 
 /**
- * Max distance (m) an opening may be moved to reach a wall.
- *
- * Beyond this there is no plausible host wall, so the opening is dropped rather
- * than left standing in the middle of a room.
+ * Max distance (m) an opening may be moved to reach an interior wall.
  */
-const OPENING_SNAP_LIMIT_M = 0.85;
+const INTERIOR_OPENING_SNAP_M = 0.85;
 
 /** A carved hole in a wall run, in run-local coordinates. */
 type RunCut = {
@@ -1189,6 +1624,9 @@ function detectionWorldSize(
 type HouseBuildResult = {
   roofGroup: THREE.Group;
   dimensionsGroup: THREE.Group;
+  structuralWallCount: number;
+  doorsMounted: number;
+  windowsMounted: number;
 };
 
 type InferredRoom = {
@@ -1199,15 +1637,8 @@ type InferredRoom = {
   areaSqFt: number;
 };
 
-function metersToFeetInches(lengthM: number): string {
-  const totalInches = lengthM * 3.28084 * 12;
-  const feet = Math.floor(totalInches / 12);
-  const inches = Math.round(totalInches % 12);
-  return `${feet}'${inches}"`;
-}
-
 function formatDimensionLabel(lengthM: number): string {
-  return `${lengthM.toFixed(2)}m (${metersToFeetInches(lengthM)})`;
+  return `${lengthM.toFixed(2)}m`;
 }
 
 function createCssLabel(
@@ -1223,12 +1654,195 @@ function createCssLabel(
   return label;
 }
 
+function centerWallRunsAtOrigin(
+  runs: WallRun[],
+  cutout: CornerCutout | null
+): { runs: WallRun[]; cutout: CornerCutout | null; offsetX: number; offsetZ: number } {
+  if (runs.length === 0) return { runs, cutout, offsetX: 0, offsetZ: 0 };
+
+  const bounds = boundsFromRuns(runs);
+  const cx = (bounds.minX + bounds.maxX) / 2;
+  const cz = (bounds.minZ + bounds.maxZ) / 2;
+
+  const shiftRun = (run: WallRun): WallRun => ({
+    ...run,
+    sx: run.sx - cx,
+    sz: run.sz - cz,
+    ex: run.ex - cx,
+    ez: run.ez - cz,
+  });
+
+  const shiftedCutout = cutout
+    ? {
+        ...cutout,
+        minX: cutout.minX - cx,
+        maxX: cutout.maxX - cx,
+        minZ: cutout.minZ - cz,
+        maxZ: cutout.maxZ - cz,
+      }
+    : null;
+
+  return { runs: runs.map(shiftRun), cutout: shiftedCutout, offsetX: cx, offsetZ: cz };
+}
+
+/** Four continuous perimeter runs on the plan AABB (trimmed for porch cutouts). */
+function buildPerimeterRuns(bounds: WallBounds, cutout: CornerCutout | null): WallRun[] {
+  const { minX, maxX, minZ, maxZ } = bounds;
+  const shell: WallRun[] = [
+    { sx: minX, sz: minZ, ex: maxX, ez: minZ, depth: WALL_DEPTH_M },
+    { sx: minX, sz: maxZ, ex: maxX, ez: maxZ, depth: WALL_DEPTH_M },
+    { sx: minX, sz: minZ, ex: minX, ez: maxZ, depth: WALL_DEPTH_M },
+    { sx: maxX, sz: minZ, ex: maxX, ez: maxZ, depth: WALL_DEPTH_M },
+  ];
+  if (cutout) return trimRunsAgainstCutout(shell, cutout, bounds);
+  return shell;
+}
+
+function perimeterSide(run: WallRun, bounds: WallBounds): PerimeterSide | null {
+  const axis = runAxis(run);
+  if (axis === "x") {
+    if (Math.abs(run.sz - bounds.minZ) <= PERIMETER_DEDUPE_TOL) return "back";
+    if (Math.abs(run.sz - bounds.maxZ) <= PERIMETER_DEDUPE_TOL) return "front";
+  } else {
+    if (Math.abs(run.sx - bounds.minX) <= PERIMETER_DEDUPE_TOL) return "left";
+    if (Math.abs(run.sx - bounds.maxX) <= PERIMETER_DEDUPE_TOL) return "right";
+  }
+  return null;
+}
+
+function isDuplicatePerimeterStroke(run: WallRun, bounds: WallBounds): boolean {
+  const side = perimeterSide(run, bounds);
+  if (!side) return false;
+  const len = runLength(run);
+  const spanX = bounds.maxX - bounds.minX;
+  const spanZ = bounds.maxZ - bounds.minZ;
+  const minSpan = side === "back" || side === "front" ? spanX * 0.3 : spanZ * 0.3;
+  return len >= minSpan;
+}
+
+function snapRunToEnvelope(run: WallRun, bounds: WallBounds): WallRun {
+  const snap = (v: number, lo: number, hi: number) => {
+    if (Math.abs(v - lo) <= INTERIOR_SNAP_DIST) return lo;
+    if (Math.abs(v - hi) <= INTERIOR_SNAP_DIST) return hi;
+    return v;
+  };
+  return {
+    ...run,
+    sx: snap(run.sx, bounds.minX, bounds.maxX),
+    sz: snap(run.sz, bounds.minZ, bounds.maxZ),
+    ex: snap(run.ex, bounds.minX, bounds.maxX),
+    ez: snap(run.ez, bounds.minZ, bounds.maxZ),
+  };
+}
+
+function prepareInteriorRuns(
+  runs: WallRun[],
+  bounds: WallBounds,
+  minInteriorM: number
+): WallRun[] {
+  const minLen = Math.max(MIN_WALL_RUN_M, minInteriorM);
+  const partitions = runs
+    .filter((r) => !isDuplicatePerimeterStroke(r, bounds))
+    .map((r) => snapRunToEnvelope(r, bounds))
+    .filter((r) => runLength(r) >= minLen);
+  const merged = collapseCoplanarRuns(partitions, 0.14);
+  return weldRunCorners(merged);
+}
+
+function perimeterOutward(run: WallRun, bounds: WallBounds): THREE.Vector3 {
+  switch (perimeterSide(run, bounds)) {
+    case "back":
+      return new THREE.Vector3(0, 0, -1);
+    case "front":
+      return new THREE.Vector3(0, 0, 1);
+    case "left":
+      return new THREE.Vector3(-1, 0, 0);
+    case "right":
+      return new THREE.Vector3(1, 0, 0);
+    default: {
+      const bcx = (bounds.minX + bounds.maxX) / 2;
+      const bcz = (bounds.minZ + bounds.maxZ) / 2;
+      const mx = (run.sx + run.ex) / 2;
+      const mz = (run.sz + run.ez) / 2;
+      if (runAxis(run) === "x") return new THREE.Vector3(0, 0, mz >= bcz ? 1 : -1);
+      return new THREE.Vector3(mx >= bcx ? 1 : -1, 0, 0);
+    }
+  }
+}
+
+function findFrontPerimeterIndex(perimeterRuns: WallRun[], bounds: WallBounds): number {
+  for (let i = 0; i < perimeterRuns.length; i++) {
+    if (perimeterSide(perimeterRuns[i], bounds) === "front") return i;
+  }
+  return -1;
+}
+
+function anchorOnRuns(
+  wx: number,
+  wz: number,
+  halfWidth: number,
+  runs: WallRun[],
+  runIndexOffset = 0
+): (WallAnchor & { globalIndex: number }) | null {
+  const anchor = anchorOpeningToRun(wx, wz, halfWidth, runs);
+  if (!anchor) return null;
+  return { ...anchor, globalIndex: runIndexOffset + anchor.runIndex };
+}
+
+function mountOpeningOnRun(
+  ctx: BuildContext,
+  run: WallRun,
+  runIndex: number,
+  anchor: WallAnchor,
+  bounds: WallBounds,
+  isWindow: boolean,
+  openingW: number,
+  size: { w: number; h: number },
+  addCut: (runIndex: number, cut: RunCut) => void,
+  forceOutward?: THREE.Vector3
+) {
+  const outward = forceOutward ?? perimeterOutward(run, bounds);
+  const half = openingW / 2 + OPENING_CUT_PAD;
+  const embed = embedInWall(anchor, WALL_DEPTH_M);
+
+  if (isWindow) {
+    const sillY = Math.max(0.35, WINDOW_CENTER_Y - size.h / 2 - 0.08);
+    addCut(runIndex, {
+      t0: anchor.t - half,
+      t1: anchor.t + half,
+      sillY,
+      headY: Math.min(WALL_HEIGHT, WINDOW_CENTER_Y + size.h / 2 + 0.12),
+    });
+    addFramedWindow(ctx, embed.x, WINDOW_CENTER_Y, embed.z, size.w, size.h, outward);
+    return;
+  }
+
+  addCut(runIndex, {
+    t0: anchor.t - half,
+    t1: anchor.t + half,
+    sillY: 0,
+    headY: Math.min(WALL_HEIGHT, DOOR_HEAD_Y),
+  });
+  addDynamicDoor(ctx, embed.x, 0, embed.z, outward);
+}
+
 function wallOutwardNormal(
   run: WallRun,
   runs: WallRun[],
-  bounds: WallBounds
+  bounds: WallBounds,
+  isExterior: boolean
 ): { x: number; z: number } {
+  const bcx = (bounds.minX + bounds.maxX) / 2;
+  const bcz = (bounds.minZ + bounds.maxZ) / 2;
+  const mx = (run.sx + run.ex) / 2;
+  const mz = (run.sz + run.ez) / 2;
   const axis = runAxis(run);
+
+  if (isExterior) {
+    if (axis === "x") return mz >= bcz ? { x: 0, z: 1 } : { x: 0, z: -1 };
+    return mx >= bcx ? { x: 1, z: 0 } : { x: -1, z: 0 };
+  }
+
   const len = runLength(run);
   const along = axis === "x" ? (run.sx + run.ex) / 2 : (run.sz + run.ez) / 2;
   const from = axis === "x" ? run.sz : run.sx;
@@ -1256,6 +1870,37 @@ function wallOutwardNormal(
   }
   if (countBlockers(1) <= countBlockers(-1)) return { x: 1, z: 0 };
   return { x: -1, z: 0 };
+}
+
+/** Major perimeter walls plus the longest primary partition on each grid line. */
+function selectDimensionRunIndices(
+  runs: WallRun[],
+  exterior: Set<number>
+): number[] {
+  const selected: number[] = [];
+  const interiorBest = new Map<string, { index: number; len: number }>();
+
+  runs.forEach((run, index) => {
+    const len = runLength(run);
+    if (len < MIN_DIMENSION_WALL_M) return;
+
+    if (exterior.has(index)) {
+      selected.push(index);
+      return;
+    }
+
+    const axis = runAxis(run);
+    const perp =
+      axis === "x"
+        ? Math.round(run.sz * 8) / 8
+        : Math.round(run.sx * 8) / 8;
+    const key = `int:${axis}:${perp}`;
+    const prev = interiorBest.get(key);
+    if (!prev || len > prev.len) interiorBest.set(key, { index, len });
+  });
+
+  for (const { index } of interiorBest.values()) selected.push(index);
+  return selected;
 }
 
 function roomNameForArea(areaSqFt: number, index: number): string {
@@ -1362,14 +2007,15 @@ function addWallDimensionLine(
   group: THREE.Group,
   run: WallRun,
   outward: { x: number; z: number },
+  offsetM: number,
   lineMat: THREE.LineBasicMaterial,
   tickMat: THREE.LineBasicMaterial
 ) {
   const len = runLength(run);
   if (len < MIN_DIMENSION_WALL_M) return;
 
-  const ox = outward.x * DIM_OFFSET_M;
-  const oz = outward.z * DIM_OFFSET_M;
+  const ox = outward.x * offsetM;
+  const oz = outward.z * offsetM;
   const y = DIM_LINE_Y;
 
   const sx = run.sx + ox;
@@ -1398,11 +2044,13 @@ function addWallDimensionLine(
     group.add(new THREE.Line(tickGeo, tickMat));
   }
 
+  const midX = (sx + ex) / 2 + outward.x * DIM_LABEL_PUSH_M;
+  const midZ = (sz + ez) / 2 + outward.z * DIM_LABEL_PUSH_M;
   const label = createCssLabel(
     formatDimensionLabel(len),
     "pointer-events-none select-none whitespace-nowrap rounded-md border border-slate-700/80 bg-white/95 px-2 py-0.5 text-[10px] font-semibold tracking-tight text-slate-800 shadow-md"
   );
-  label.position.set((sx + ex) / 2, y, (sz + ez) / 2);
+  label.position.set(midX, y + 0.04, midZ);
   group.add(label);
 }
 
@@ -1419,32 +2067,39 @@ function buildDimensionOverlay(
   const tickMat = new THREE.LineBasicMaterial({ color: 0x0f172a });
 
   const dimensioned = new Set<string>();
+  const sideTiers = new Map<string, number>();
+  const indices = selectDimensionRunIndices(runs, exterior);
 
-  runs.forEach((run, index) => {
+  for (const index of indices) {
+    const run = runs[index];
     const len = runLength(run);
     const isExterior = exterior.has(index);
-    if (!isExterior && len < MIN_DIMENSION_WALL_M) return;
 
     const axis = runAxis(run);
     const perp = axis === "x" ? run.sz : run.sx;
     const lo = axis === "x" ? Math.min(run.sx, run.ex) : Math.min(run.sz, run.ez);
     const hi = axis === "x" ? Math.max(run.sx, run.ex) : Math.max(run.sz, run.ez);
     const key = `${axis}:${Math.round(perp * 20)}:${Math.round(lo * 10)}:${Math.round(hi * 10)}`;
-    if (dimensioned.has(key)) return;
+    if (dimensioned.has(key)) continue;
     dimensioned.add(key);
 
-    const outward = wallOutwardNormal(run, runs, bounds);
-    addWallDimensionLine(group, run, outward, lineMat, tickMat);
-  });
+    const outward = wallOutwardNormal(run, runs, bounds, isExterior);
+    const sideKey = `${outward.x},${outward.z}:${Math.round(perp * 4)}`;
+    const tier = sideTiers.get(sideKey) ?? 0;
+    sideTiers.set(sideKey, tier + 1);
+    const offsetM = DIM_OFFSET_M + tier * DIM_OFFSET_TIER_M;
+
+    addWallDimensionLine(group, run, outward, offsetM, lineMat, tickMat);
+  }
 
   const rooms = inferRoomsFromRuns(runs, cutout);
-  for (const room of rooms) {
+  for (const room of rooms.slice(0, 6)) {
     const badge = createCssLabel(
       `${room.name}: ${room.areaSqFt} sq.ft`,
       "pointer-events-none select-none whitespace-nowrap rounded-full border border-[#D4AF37]/60 bg-slate-900/88 px-3 py-1 text-[11px] font-medium text-white shadow-lg backdrop-blur-sm",
-      1.55
+      2.35
     );
-    badge.position.set(room.cx, 1.55, room.cz);
+    badge.position.set(room.cx, 2.35, room.cz);
     group.add(badge);
   }
 
@@ -1459,19 +2114,30 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuild
   // origin exactly; the backend footprint is the fallback for wall-less payloads.
   const housePx =
     pixelBoundsFromWalls(data.walls) ?? houseBoundsToPixelBounds(data.house_bounds);
+  const structuralWalls = filterStructuralWallSegments(data.walls, housePx);
   const { toX, toZ, scale } = createCoordMap(imgW, imgH, housePx);
+  const minInteriorM = MIN_INTERIOR_PARTITION_PX * scale;
 
-  // 1) Blueprint pixels -> world runs
+  // 1) Blueprint pixels -> world runs (fixture outlines already removed)
   const candidateRuns: WallRun[] = [];
-  for (const wall of data.walls ?? []) {
+  for (const wall of structuralWalls) {
     const seg = wallEndpoints(wall);
     if (!seg) continue;
+
+    const segLenPx = wallSegmentLengthPx(seg);
+    if (
+      housePx &&
+      !isPerimeterWallSegment(seg, housePx) &&
+      segLenPx < MIN_INTERIOR_PARTITION_PX
+    ) {
+      continue;
+    }
 
     const sx = toX(seg.x1);
     const sz = toZ(seg.y1);
     const ex = toX(seg.x2);
     const ez = toZ(seg.y2);
-    if (Math.hypot(ex - sx, ez - sz) < MIN_WALL_RUN_M) continue;
+    if (Math.hypot(ex - sx, ez - sz) < minInteriorM) continue;
 
     candidateRuns.push({ sx, sz, ex, ez, depth: WALL_DEPTH_M });
   }
@@ -1480,7 +2146,13 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuild
   let runs = buildOrthogonalLayout(candidateRuns, scale);
 
   if (runs.length === 0) {
-    return { roofGroup: new THREE.Group(), dimensionsGroup: new THREE.Group() };
+    return {
+      roofGroup: new THREE.Group(),
+      dimensionsGroup: new THREE.Group(),
+      structuralWallCount: 0,
+      doorsMounted: 0,
+      windowsMounted: 0,
+    };
   }
 
   // 3) Open the car porch: prefer the ink-flood cutout from the backend so
@@ -1511,20 +2183,26 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuild
     cutout = findCornerCutout(runs);
   }
 
-  // 4) Walls facing open air can take glazing; partitions cannot
-  const exterior = exteriorRunIndices(runs);
+  // Centre the entire building on world origin so the slab sits at (0, 0, 0).
+  const centered = centerWallRunsAtOrigin(runs, cutout);
+  runs = centered.runs;
+  cutout = centered.cutout;
+  const { offsetX, offsetZ } = centered;
 
-  // Slab and roof sit slightly proud of the masonry
-  const footprint = boundsFromRuns(runs);
-  const pad = 0.15;
-  const closedBounds: WallBounds = {
-    minX: footprint.minX - pad,
-    maxX: footprint.maxX + pad,
-    minZ: footprint.minZ - pad,
-    maxZ: footprint.maxZ + pad,
-  };
+  // 4) Solid exterior envelope + interior partitions that snap flush to it
+  const envelopeBounds = boundsFromRuns(runs);
+  const perimeterRuns = buildPerimeterRuns(envelopeBounds, cutout);
+  const interiorRuns = prepareInteriorRuns(runs, envelopeBounds, minInteriorM);
+  const allRuns = [...perimeterRuns, ...interiorRuns];
+  const perimeterCount = perimeterRuns.length;
+  const structuralWallCount = allRuns.length;
 
-  // 4) Mount every opening inside a wall run and record the hole to carve
+  const exterior = new Set<number>(
+    Array.from({ length: perimeterCount }, (_, i) => i)
+  );
+
+  const closedBounds: WallBounds = { ...envelopeBounds };
+
   const cutsByRun = new Map<number, RunCut[]>();
   const mountedOpenings: { x: number; z: number }[] = [];
   const addCut = (runIndex: number, cut: RunCut) => {
@@ -1537,86 +2215,127 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuild
     else cutsByRun.set(runIndex, [cut]);
   };
 
-  const openingDetections = dedupeOpeningDetections(
-    data.architectural_detections ?? [],
+  const rawOpenings = data.architectural_detections ?? [];
+  const openingDetections = filterStrictOpenings(
+    rawOpenings,
+    data.walls ?? [],
+    housePx,
     imgW,
     imgH
   );
 
-  for (const det of openingDetections) {
+  const doorDetections = openingDetections
+    .filter(isDoorDetection)
+    .sort(openingIdSort);
+  const windowDetections = openingDetections
+    .filter(isWindowDetection)
+    .sort(openingIdSort);
+
+  const doorMountNmsM = Math.max(0.95, DOOR_NMS_PX * scale);
+
+  let doorsMounted = 0;
+  let windowsMounted = 0;
+  let frontDoorPlaced = false;
+
+  type MountHost = "perimeter" | "front" | "interior" | "any";
+
+  const tryMountOpening = (
+    det: BlueprintDetection,
+    isWindow: boolean,
+    isDoor: boolean,
+    host: MountHost = "any"
+  ): boolean => {
     const center = detectionCenter(det, imgW, imgH);
-    if (!center) continue;
-    const label = detectionLabel(det);
-    const isWindow = label.includes("window");
-    const isDoor = label.includes("door");
-    if (!isWindow && !isDoor) continue;
+    if (!center) return false;
 
     const size = detectionWorldSize(det, imgW, imgH, scale);
     const openingW = isDoor ? DOOR_OPENING_W : size.w;
-    // Glazing belongs on walls facing open air; a window on a partition would
-    // sit between two rooms. Doors can go anywhere.
-    const hostable =
-      isWindow && exterior.size > 0
-        ? runs.filter((_, i) => exterior.has(i))
-        : runs;
-    const anchor = anchorOpeningToRun(
-      toX(center.cx),
-      toZ(center.cy),
-      openingW / 2,
-      hostable
-    );
-    // No plausible host wall — drop it rather than leave it floating in a room
-    if (!anchor || anchor.distance > OPENING_SNAP_LIMIT_M) continue;
-
-    // anchor.runIndex indexes `hostable`; map it back to the full run list
-    const hostRun = hostable[anchor.runIndex];
-    const runIndex = runs.indexOf(hostRun);
-    if (runIndex < 0) continue;
-
-    const outward = new THREE.Vector3(anchor.outwardX, 0, anchor.outwardZ);
+    const wx = toX(center.cx) - offsetX;
+    const wz = toZ(center.cy) - offsetZ;
     const half = openingW / 2 + OPENING_CUT_PAD;
-    const embed = embedInWall(anchor, WALL_DEPTH_M);
 
+    const frontIdx = findFrontPerimeterIndex(perimeterRuns, envelopeBounds);
+    let anchor: (WallAnchor & { globalIndex: number }) | null = null;
+
+    if (isDoor && host === "front" && frontIdx >= 0) {
+      const frontRun = perimeterRuns[frontIdx];
+      const frontAnchor = anchorOpeningToRun(wx, wz, half, [frontRun]);
+      if (frontAnchor && frontAnchor.distance <= PERIMETER_OPENING_SNAP_M) {
+        anchor = { ...frontAnchor, globalIndex: frontIdx };
+      }
+    } else if (isWindow || host === "perimeter") {
+      anchor = anchorOnRuns(wx, wz, half, perimeterRuns);
+    } else if (isDoor && host === "interior") {
+      anchor = anchorOnRuns(wx, wz, half, interiorRuns, perimeterCount);
+    } else if (isDoor && host === "front") {
+      if (frontIdx >= 0) {
+        const frontRun = perimeterRuns[frontIdx];
+        const frontAnchor = anchorOpeningToRun(wx, wz, half, [frontRun]);
+        if (frontAnchor && frontAnchor.distance <= PERIMETER_OPENING_SNAP_M) {
+          anchor = { ...frontAnchor, globalIndex: frontIdx };
+        }
+      }
+    } else if (isDoor) {
+      anchor = anchorOnRuns(wx, wz, half, interiorRuns, perimeterCount);
+    } else {
+      anchor = anchorOnRuns(wx, wz, half, perimeterRuns);
+    }
+
+    if (!anchor) return false;
+
+    const snapLimit =
+      anchor.globalIndex >= perimeterCount
+        ? INTERIOR_OPENING_SNAP_M
+        : PERIMETER_OPENING_SNAP_M;
+    if (anchor.distance > snapLimit) return false;
+
+    const runIndex = anchor.globalIndex;
+    const hostRun = allRuns[runIndex];
+    if (!hostRun) return false;
+
+    const embed = embedInWall(anchor, WALL_DEPTH_M);
+    const mountNms = isDoor ? doorMountNmsM : OPENING_NMS_M;
     if (
       mountedOpenings.some(
-        (p) => Math.hypot(p.x - embed.x, p.z - embed.z) < OPENING_NMS_M
+        (p) => Math.hypot(p.x - embed.x, p.z - embed.z) < mountNms
       )
     ) {
-      continue;
+      return false;
     }
     mountedOpenings.push({ x: embed.x, z: embed.z });
 
-    if (isWindow) {
-      const sillY = Math.max(0.35, WINDOW_CENTER_Y - size.h / 2 - 0.08);
-      addCut(runIndex, {
-        t0: anchor.t - half,
-        t1: anchor.t + half,
-        sillY,
-        headY: Math.min(WALL_HEIGHT, WINDOW_CENTER_Y + size.h / 2 + 0.12),
-      });
-      addFramedWindow(
-        ctx,
-        embed.x,
-        WINDOW_CENTER_Y,
-        embed.z,
-        size.w,
-        size.h,
-        outward
-      );
-    } else {
-      addCut(runIndex, {
-        t0: anchor.t - half,
-        t1: anchor.t + half,
-        sillY: 0,
-        headY: Math.min(WALL_HEIGHT, DOOR_HEAD_Y),
-      });
-      addDynamicDoor(ctx, embed.x, 0, embed.z, outward);
+    if (isDoor && frontIdx >= 0 && runIndex === frontIdx) {
+      frontDoorPlaced = true;
     }
+    if (isDoor) doorsMounted++;
+    if (isWindow) windowsMounted++;
+
+    mountOpeningOnRun(
+      ctx,
+      hostRun,
+      runIndex,
+      anchor,
+      envelopeBounds,
+      isWindow,
+      openingW,
+      size,
+      addCut
+    );
+    return true;
+  };
+
+  for (const det of windowDetections) {
+    tryMountOpening(det, true, false, "perimeter");
   }
 
-  // 5) Extrude masonry with the openings carved out, then seal corners
-  runs.forEach((run, i) => extrudeRun(ctx, run, cutsByRun.get(i) ?? []));
-  addCornerPatches(ctx, runs);
+  doorDetections.forEach((det) => {
+    tryMountOpening(det, false, true, "interior");
+  });
+
+  // No fallback phantom doors — only mount verified schedule detections.
+  // 5) Extrude perimeter shell + interior partitions, then seal corners
+  allRuns.forEach((run, i) => extrudeRun(ctx, run, cutsByRun.get(i) ?? []));
+  addCornerPatches(ctx, allRuns);
 
   for (const det of data.structural_detections ?? []) {
     const center = detectionCenter(det, imgW, imgH);
@@ -1624,13 +2343,23 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuild
     const col = shadowMesh(
       new THREE.Mesh(new THREE.BoxGeometry(0.42, WALL_HEIGHT, 0.42), ctx.materials.column)
     );
-    col.position.set(toX(center.cx), WALL_HEIGHT / 2, toZ(center.cy));
+    col.position.set(
+      toX(center.cx) - offsetX,
+      WALL_HEIGHT / 2,
+      toZ(center.cy) - offsetZ
+    );
     ctx.group.add(col);
   }
 
-  const dimensionsGroup = buildDimensionOverlay(runs, exterior, cutout);
+  const dimensionsGroup = buildDimensionOverlay(allRuns, exterior, cutout);
   const roofGroup = addDynamicRoofAndSlab(ctx, closedBounds, cutout);
-  return { roofGroup, dimensionsGroup };
+  return {
+    roofGroup,
+    dimensionsGroup,
+    structuralWallCount,
+    doorsMounted,
+    windowsMounted,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1640,6 +2369,7 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuild
 export function FloorPlan3DViewport({
   data,
   detections,
+  openingsSchedule: openingsScheduleProp,
   hasLiveResult = false,
   className = "",
 }: FloorPlan3DViewportProps) {
@@ -1666,6 +2396,13 @@ export function FloorPlan3DViewport({
     () => resolveBlueprintData(data, detections, hasLiveResult),
     [data, detections, hasLiveResult]
   );
+  const openingsSchedule = useMemo(
+    () =>
+      openingsScheduleProp ??
+      blueprintData?.openings_schedule ??
+      null,
+    [openingsScheduleProp, blueprintData]
+  );
   const hasRealWalls = Boolean(blueprintData?.walls && blueprintData.walls.length > 0);
 
   useEffect(() => {
@@ -1685,7 +2422,7 @@ export function FloorPlan3DViewport({
     const height = container.clientHeight || 500;
 
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 500);
-    camera.position.set(0, 14, 16);
+    camera.position.set(0, 11, 16);
     cameraRef.current = camera;
 
     let renderer: THREE.WebGLRenderer;
@@ -1715,8 +2452,9 @@ export function FloorPlan3DViewport({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.target.set(0, 1.4, 0);
+    controls.target.set(0, 1.2, 0);
     controls.maxPolarAngle = Math.PI / 2 - 0.02;
+    controls.update();
     controlsRef.current = controls;
 
     scene.add(
@@ -1921,21 +2659,35 @@ export function FloorPlan3DViewport({
     setIsWalkthrough(false);
     setShowRoof(true);
     controlsRef.current.enabled = true;
-    cameraRef.current.position.set(0, 9, 15);
-    controlsRef.current.target.set(0, 1.4, 0);
+    cameraRef.current.position.set(0, 11, 16);
+    controlsRef.current.target.set(0, 1.2, 0);
+    controlsRef.current.update();
   };
 
-  const wallCount = blueprintData?.walls?.length ?? 0;
+  const wallCount = useMemo(() => {
+    const fromDetections =
+      detections?.filter(
+        (d) =>
+          d.kind === "wall" ||
+          /wall|partition|boundary/.test(`${d.id} ${d.label}`.toLowerCase())
+      ).length ?? 0;
+    if (fromDetections > 0) return fromDetections;
+    return blueprintData?.walls?.length ?? 0;
+  }, [detections, blueprintData?.walls]);
+
+  const doorCount =
+    openingsSchedule?.totalDoors ??
+    blueprintData?.architectural_detections?.filter(isDoorDetection).length ??
+    0;
   const windowCount =
-    blueprintData?.architectural_detections?.filter((d) =>
-      detectionLabel(d).includes("window")
-    ).length ?? 0;
+    openingsSchedule?.totalWindows ??
+    blueprintData?.architectural_detections?.filter(isWindowDetection).length ??
+    0;
   const columnCount = blueprintData?.structural_detections?.length ?? 0;
 
   return (
-    <div
-      className={`overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl ${className}`}
-    >
+    <div className={`space-y-4 ${className}`}>
+      <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-[#D4AF37]">
@@ -1944,7 +2696,7 @@ export function FloorPlan3DViewport({
           <h2 className="mt-0.5 text-lg font-bold text-slate-900">3D Floor Plan View</h2>
           <p className="mt-0.5 text-xs text-slate-500">
             {hasRealWalls
-              ? `${wallCount} walls · ${windowCount} windows · ${columnCount} columns · Blueprint-driven`
+              ? `${wallCount} walls · ${doorCount} door${doorCount === 1 ? "" : "s"} · ${windowCount} window${windowCount === 1 ? "" : "s"} · ${columnCount} column${columnCount === 1 ? "" : "s"} · Blueprint-driven`
               : hasLiveResult
                 ? "No wall segments in analysis result — re-run detection on a clearer floor plan"
                 : "Upload a blueprint and run analysis to generate a live 3D floor plan"}
@@ -2064,6 +2816,12 @@ export function FloorPlan3DViewport({
           </span>
         </div>
       </div>
+      </div>
+
+      <OpeningsScheduleCard
+        schedule={openingsSchedule}
+        hasLiveResult={hasLiveResult && hasRealWalls}
+      />
     </div>
   );
 }

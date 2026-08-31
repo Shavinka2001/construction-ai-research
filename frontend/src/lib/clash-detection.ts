@@ -118,6 +118,21 @@ export type Blueprint3DPayload = {
   architectural_detections: DetectionBox[];
   structural_detections: DetectionBox[];
   house_bounds: HouseBounds | null;
+  openings_schedule?: OpeningsSchedule | null;
+};
+
+export type OpeningScheduleItem = {
+  id: string;
+  name: string;
+  size: string;
+  type: string;
+};
+
+export type OpeningsSchedule = {
+  totalDoors: number;
+  totalWindows: number;
+  doorsList: OpeningScheduleItem[];
+  windowsList: OpeningScheduleItem[];
 };
 
 export type ClashDetectionResult = {
@@ -131,6 +146,7 @@ export type ClashDetectionResult = {
   clashes: ClashItem[];
   recommendations: GcrRecommendation[];
   architecturalAudit?: ArchitecturalAudit | null;
+  openingsSchedule?: OpeningsSchedule | null;
   model?: string;
   elementsDetected?: number;
   isAiGenerated?: boolean;
@@ -142,6 +158,20 @@ export type ClashDetectionResult = {
 
 export type CrossVentilationStatus = "PASSED" | "WARNING";
 export type SolarGainStatus = "OK" | "HIGH_WEST_EXPOSURE";
+
+export type ComplianceStatus = "PASSED" | "WARNING";
+
+export type RoomComplianceItem = {
+  roomId: string;
+  areaSqM: number;
+  areaSqFt: number;
+  windowToFloorRatio: number;
+  lightingStatus: ComplianceStatus;
+  codeStatus: ComplianceStatus;
+  minDimensionM: number;
+  openingIds: string[];
+  recommendation?: string | null;
+};
 
 export type ArchitecturalAudit = {
   wallClassifications: {
@@ -173,6 +203,30 @@ export type ArchitecturalAudit = {
     summary?: string;
     recommendation?: string | null;
     westFacingLivingWindows: Array<{ id: string; label: string }>;
+  };
+  roomCompliance?: {
+    status: ComplianceStatus;
+    lightingStatus: ComplianceStatus;
+    codeStatus: ComplianceStatus;
+    lightingSummary?: string;
+    codeSummary?: string;
+    summary?: string;
+    rooms: RoomComplianceItem[];
+  };
+  lightingVentilation?: {
+    status: ComplianceStatus;
+    summary?: string;
+    minWindowToFloorRatio: number;
+    rooms: RoomComplianceItem[];
+  };
+  structuralGrid?: {
+    status: "CLASH_FREE" | "REVIEW_REQUIRED";
+    synthesisMode: string;
+    columnCount: number;
+    clashFree: boolean;
+    clashesCount: number;
+    summary?: string;
+    recommendation?: string | null;
   };
 };
 
@@ -633,6 +687,38 @@ function normalizeArchitecturalAudit(raw: unknown): ArchitecturalAudit | null {
     ? solar.west_facing_living_windows
     : [];
 
+  const parseRoomItems = (items: unknown): RoomComplianceItem[] => {
+    if (!Array.isArray(items)) return [];
+    return items.map((room: Record<string, unknown>, i: number) => ({
+      roomId: String(room.room_id ?? `ROOM-${i + 1}`),
+      areaSqM: Number(room.area_sq_m ?? 0),
+      areaSqFt: Number(room.area_sq_ft ?? 0),
+      windowToFloorRatio: Number(room.window_to_floor_ratio ?? 0),
+      lightingStatus:
+        String(room.lighting_status ?? "WARNING").toUpperCase() === "PASSED"
+          ? ("PASSED" as const)
+          : ("WARNING" as const),
+      codeStatus:
+        String(room.code_status ?? "WARNING").toUpperCase() === "PASSED"
+          ? ("PASSED" as const)
+          : ("WARNING" as const),
+      minDimensionM: Number(room.min_dimension_m ?? 0),
+      openingIds: Array.isArray(room.opening_ids)
+        ? room.opening_ids.map(String)
+        : [],
+      recommendation: room.recommendation ? String(room.recommendation) : null,
+    }));
+  };
+
+  const roomComplianceRaw = data.room_compliance as Record<string, unknown> | undefined;
+  const lightingRaw = data.lighting_ventilation as Record<string, unknown> | undefined;
+  const structuralRaw = data.structural_grid as Record<string, unknown> | undefined;
+
+  const complianceRooms = parseRoomItems(roomComplianceRaw?.rooms ?? lightingRaw?.rooms);
+
+  const parseComplianceStatus = (v: unknown): ComplianceStatus =>
+    String(v ?? "WARNING").toUpperCase() === "PASSED" ? "PASSED" : "WARNING";
+
   return {
     wallClassifications: {
       loadBearingCount: Number(walls.load_bearing_count ?? 0),
@@ -685,6 +771,82 @@ function normalizeArchitecturalAudit(raw: unknown): ArchitecturalAudit | null {
         })
       ),
     },
+    roomCompliance: roomComplianceRaw
+      ? {
+          status: parseComplianceStatus(roomComplianceRaw.status),
+          lightingStatus: parseComplianceStatus(roomComplianceRaw.lighting_status),
+          codeStatus: parseComplianceStatus(roomComplianceRaw.code_status),
+          lightingSummary: roomComplianceRaw.lighting_summary
+            ? String(roomComplianceRaw.lighting_summary)
+            : undefined,
+          codeSummary: roomComplianceRaw.code_summary
+            ? String(roomComplianceRaw.code_summary)
+            : undefined,
+          summary: roomComplianceRaw.summary
+            ? String(roomComplianceRaw.summary)
+            : undefined,
+          rooms: complianceRooms,
+        }
+      : undefined,
+    lightingVentilation: lightingRaw
+      ? {
+          status: parseComplianceStatus(lightingRaw.status),
+          summary: lightingRaw.summary ? String(lightingRaw.summary) : undefined,
+          minWindowToFloorRatio: Number(lightingRaw.min_window_to_floor_ratio ?? 0.1),
+          rooms: parseRoomItems(lightingRaw.rooms),
+        }
+      : undefined,
+    structuralGrid: structuralRaw
+      ? {
+          status:
+            String(structuralRaw.status ?? "CLASH_FREE").toUpperCase() === "CLASH_FREE"
+              ? ("CLASH_FREE" as const)
+              : ("REVIEW_REQUIRED" as const),
+          synthesisMode: String(structuralRaw.synthesis_mode ?? "AI-GSL"),
+          columnCount: Number(structuralRaw.column_count ?? 0),
+          clashFree: Boolean(structuralRaw.clash_free),
+          clashesCount: Number(structuralRaw.clashes_count ?? 0),
+          summary: structuralRaw.summary ? String(structuralRaw.summary) : undefined,
+          recommendation: structuralRaw.recommendation
+            ? String(structuralRaw.recommendation)
+            : null,
+        }
+      : undefined,
+  };
+}
+
+function normalizeOpeningScheduleItem(raw: unknown): OpeningScheduleItem | null {
+  if (!raw || typeof raw !== "object") return null;
+  const item = raw as Record<string, unknown>;
+  const id = String(item.id ?? "");
+  if (!id) return null;
+  return {
+    id,
+    name: String(item.name ?? id),
+    size: String(item.size ?? "—"),
+    type: String(item.type ?? "—"),
+  };
+}
+
+function normalizeOpeningsSchedule(raw: unknown): OpeningsSchedule | null {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as Record<string, unknown>;
+  const doorsList = Array.isArray(data.doors_list)
+    ? data.doors_list
+        .map(normalizeOpeningScheduleItem)
+        .filter((item): item is OpeningScheduleItem => item !== null)
+    : [];
+  const windowsList = Array.isArray(data.windows_list)
+    ? data.windows_list
+        .map(normalizeOpeningScheduleItem)
+        .filter((item): item is OpeningScheduleItem => item !== null)
+    : [];
+
+  return {
+    totalDoors: Number(data.total_doors ?? doorsList.length),
+    totalWindows: Number(data.total_windows ?? windowsList.length),
+    doorsList,
+    windowsList,
   };
 }
 
@@ -973,6 +1135,7 @@ export async function runClashDetection(
     const architecturalAudit =
       normalizeArchitecturalAudit(payload.architectural_audit) ??
       DEFAULT_ARCHITECTURAL_AUDIT;
+    const openingsSchedule = normalizeOpeningsSchedule(payload.openings_schedule);
 
     const meta = (payload.meta ?? {}) as Record<string, unknown>;
     const imageWidth = Number(
@@ -1004,6 +1167,7 @@ export async function runClashDetection(
       architectural_detections: archOut,
       structural_detections: structOut,
       house_bounds: houseBounds,
+      openings_schedule: openingsSchedule,
     };
 
     return {
@@ -1016,6 +1180,7 @@ export async function runClashDetection(
       clashes: clashes.length ? clashes : hasLivePayload ? [] : DEFAULT_CLASHES,
       recommendations,
       architecturalAudit,
+      openingsSchedule,
       model:
         typeof payload.model === "string"
           ? payload.model

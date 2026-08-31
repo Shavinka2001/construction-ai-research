@@ -4,6 +4,8 @@ AI-Driven Passive Design & Structural Integrity Audits (Component 2).
 1. Structural Wall Classifier — thickness + column alignment → LOAD_BEARING | PARTITION
 2. Passive Cross-Ventilation Analyzer — opposite openings per room contour
 3. Solar Orientation & Heat Gain Predictor — west-facing living-area windows
+4. Room Lighting & Window-to-Floor Ratio — natural light code check (≥ 10%)
+5. Building Code Room Compliance — minimum area & dimension verification
 """
 
 from __future__ import annotations
@@ -32,6 +34,12 @@ PX_PER_METER = 100.0
 LOAD_BEARING_THICKNESS_M = 0.23
 LOAD_BEARING_THICKNESS_PX = LOAD_BEARING_THICKNESS_M * PX_PER_METER  # ≈ 23 px
 COLUMN_ALIGN_PAD_PX = 28.0  # proximity for wall↔column structural alignment
+
+PLAN_WORLD_SPAN_M = 18.0
+MIN_WINDOW_TO_FLOOR_RATIO = 0.10
+MIN_HABITABLE_AREA_SQM = 6.5  # ~70 sq.ft
+MIN_BATHROOM_AREA_SQM = 3.3  # ~35 sq.ft
+MIN_ROOM_WIDTH_M = 2.1  # 7 ft habitable width
 
 # Ghost-wall filter: dimension/grid/text strokes are 1–2 px; real masonry ink is thicker.
 # Anchored to the 1024 canvas; scales if a different registration size is used.
@@ -599,16 +607,217 @@ def analyze_solar_gain(
     }
 
 
+def _meters_per_pixel(house_bounds: dict[str, Any] | None, canvas: int) -> float:
+    if house_bounds:
+        width = float(house_bounds.get("width") or 0)
+        height = float(house_bounds.get("height") or 0)
+        span = max(width, height)
+        if span > 1:
+            return PLAN_WORLD_SPAN_M / span
+    return PLAN_WORLD_SPAN_M / float(canvas)
+
+
+def _is_window_opening(opening: Detection) -> bool:
+    lid = opening.id.upper()
+    return lid.startswith("W") or "window" in opening.label.lower()
+
+
+def _intersection_area(a: BoundingBox, b: BoundingBox) -> float:
+    ixmin = max(a.xmin, b.xmin)
+    iymin = max(a.ymin, b.ymin)
+    ixmax = min(a.xmax, b.xmax)
+    iymax = min(a.ymax, b.ymax)
+    if ixmax <= ixmin or iymax <= iymin:
+        return 0.0
+    return float((ixmax - ixmin) * (iymax - iymin))
+
+
+def _enumerate_room_boxes(
+    arch_image: np.ndarray,
+) -> list[tuple[str, BoundingBox]]:
+    h, w = arch_image.shape[:2]
+    gray = cv2.cvtColor(arch_image, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blur, 40, 120)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    img_area = float(h * w)
+    rooms: list[tuple[str, BoundingBox]] = []
+    room_idx = 0
+
+    for contour in contours:
+        area = float(cv2.contourArea(contour))
+        if area < img_area * 0.04 or area > img_area * 0.85:
+            continue
+        x, y, bw, bh = cv2.boundingRect(contour)
+        if bw < 40 or bh < 40:
+            continue
+        room_idx += 1
+        rooms.append(
+            (
+                f"ROOM-{room_idx:02d}",
+                BoundingBox(float(x), float(y), float(x + bw), float(y + bh)),
+            )
+        )
+    return rooms
+
+
+def analyze_room_code_compliance(
+    arch_image: np.ndarray,
+    openings: list[Detection],
+    house_bounds: dict[str, Any] | None,
+    canvas: int = CANVAS_SIZE,
+) -> dict[str, Any]:
+    """
+    Step 2 & 3 — window-to-floor ratio (≥ 10%) and residential minimum dimensions.
+    """
+    mpp = _meters_per_pixel(house_bounds, canvas)
+    sqm_per_px = mpp * mpp
+    windows = [o for o in openings if _is_window_opening(o)]
+
+    room_boxes = _enumerate_room_boxes(arch_image)
+    if not room_boxes:
+        plan = BoundingBox(0.0, 0.0, float(canvas), float(canvas))
+        room_boxes = [("ROOM-PLAN", plan)]
+
+    rooms_out: list[dict[str, Any]] = []
+    for room_id, room_box in room_boxes:
+        floor_area_px = max(room_box.width * room_box.height, 1.0)
+        floor_area_sq_m = floor_area_px * sqm_per_px
+        floor_area_sq_ft = floor_area_sq_m * 10.7639
+
+        window_area_px = 0.0
+        room_opening_ids: list[str] = []
+        for win in windows:
+            cx = (win.box.xmin + win.box.xmax) / 2.0
+            cy = (win.box.ymin + win.box.ymax) / 2.0
+            if (
+                room_box.xmin - 8 <= cx <= room_box.xmax + 8
+                and room_box.ymin - 8 <= cy <= room_box.ymax + 8
+            ):
+                window_area_px += _intersection_area(room_box, win.box)
+                room_opening_ids.append(win.id)
+
+        wfr = window_area_px / floor_area_px
+        lighting_pass = wfr >= MIN_WINDOW_TO_FLOOR_RATIO
+
+        min_dim_m = min(room_box.width, room_box.height) * mpp
+        min_area_ok = floor_area_sq_m >= MIN_HABITABLE_AREA_SQM
+        min_width_ok = min_dim_m >= MIN_ROOM_WIDTH_M
+        code_pass = min_area_ok and min_width_ok
+
+        issues: list[str] = []
+        if not lighting_pass:
+            issues.append(
+                f"Window area {wfr * 100:.1f}% < {MIN_WINDOW_TO_FLOOR_RATIO * 100:.0f}% required"
+            )
+        if not min_area_ok:
+            issues.append(
+                f"Area {floor_area_sq_m:.1f} m² below {MIN_HABITABLE_AREA_SQM:.1f} m² minimum"
+            )
+        if not min_width_ok:
+            issues.append(
+                f"Min width {min_dim_m:.2f} m below {MIN_ROOM_WIDTH_M:.1f} m code minimum"
+            )
+
+        rooms_out.append(
+            {
+                "room_id": room_id,
+                "area_sq_m": round(floor_area_sq_m, 1),
+                "area_sq_ft": round(floor_area_sq_ft, 0),
+                "window_to_floor_ratio": round(wfr, 3),
+                "lighting_status": "PASSED" if lighting_pass else "WARNING",
+                "code_status": "PASSED" if code_pass else "WARNING",
+                "min_dimension_m": round(min_dim_m, 2),
+                "opening_ids": room_opening_ids,
+                "recommendation": "; ".join(issues) if issues else None,
+            }
+        )
+
+    lighting_pass_count = sum(
+        1 for r in rooms_out if r["lighting_status"] == "PASSED"
+    )
+    code_pass_count = sum(1 for r in rooms_out if r["code_status"] == "PASSED")
+    any_light_warn = any(r["lighting_status"] == "WARNING" for r in rooms_out)
+    any_code_warn = any(r["code_status"] == "WARNING" for r in rooms_out)
+
+    lighting_status = "PASSED" if rooms_out and not any_light_warn else "WARNING"
+    code_status = "PASSED" if rooms_out and not any_code_warn else "WARNING"
+    overall = (
+        "PASSED"
+        if lighting_status == "PASSED" and code_status == "PASSED"
+        else "WARNING"
+    )
+
+    return {
+        "status": overall,
+        "lighting_status": lighting_status,
+        "code_status": code_status,
+        "lighting_summary": (
+            f"{lighting_pass_count}/{len(rooms_out)} rooms meet ≥"
+            f"{int(MIN_WINDOW_TO_FLOOR_RATIO * 100)}% window-to-floor ratio"
+        ),
+        "code_summary": (
+            f"{code_pass_count}/{len(rooms_out)} rooms meet minimum area & width codes"
+        ),
+        "summary": (
+            f"{len(rooms_out)} rooms analyzed · "
+            f"{lighting_pass_count} pass lighting · {code_pass_count} pass building code"
+        ),
+        "rooms": rooms_out[:12],
+    }
+
+
+def build_structural_grid_status(
+    columns: list[Detection],
+    *,
+    ai_generated: bool,
+    clashes_count: int,
+) -> dict[str, Any]:
+    """Step 4 — AI-synthesized structural column grid summary."""
+    clash_free = clashes_count == 0
+    mode = "AI-GSL" if ai_generated else "STRUCTURAL_PLAN"
+    status = "CLASH_FREE" if clash_free else "REVIEW_REQUIRED"
+    return {
+        "status": status,
+        "synthesis_mode": mode,
+        "column_count": len(columns),
+        "clash_free": clash_free,
+        "clashes_count": clashes_count,
+        "summary": (
+            f"{len(columns)} {'AI-synthesized' if ai_generated else 'detected'} columns · "
+            f"{'clash-free grid at wall corners & load intersections' if clash_free else f'{clashes_count} clash(es) require review'}"
+        ),
+        "recommendation": (
+            None
+            if clash_free
+            else "Review GCR recommendations or regenerate the structural grid."
+        ),
+    }
+
+
 def run_architectural_audit(
     arch_image: np.ndarray,
     openings: list[Detection],
     columns: list[Detection],
     canvas: int = CANVAS_SIZE,
+    house_bounds: dict[str, Any] | None = None,
+    *,
+    ai_generated: bool = False,
+    clashes_count: int = 0,
 ) -> dict[str, Any]:
-    """Run all three passive-design / structural audits."""
+    """Run passive-design, code compliance, and structural synthesis audits."""
     walls = detect_and_classify_walls(arch_image, columns, canvas=canvas)
     ventilation = analyze_cross_ventilation(arch_image, openings)
     solar = analyze_solar_gain(openings, canvas=canvas)
+    room_compliance = analyze_room_code_compliance(
+        arch_image, openings, house_bounds, canvas=canvas
+    )
+    structural_grid = build_structural_grid_status(
+        columns, ai_generated=ai_generated, clashes_count=clashes_count
+    )
 
     load_bearing = sum(1 for w in walls if w.get("wall_type") == "LOAD_BEARING")
     partition = sum(1 for w in walls if w.get("wall_type") == "PARTITION")
@@ -632,4 +841,12 @@ def run_architectural_audit(
         },
         "cross_ventilation": ventilation,
         "solar_gain": solar,
+        "room_compliance": room_compliance,
+        "lighting_ventilation": {
+            "status": room_compliance.get("lighting_status", "WARNING"),
+            "summary": room_compliance.get("lighting_summary"),
+            "min_window_to_floor_ratio": MIN_WINDOW_TO_FLOOR_RATIO,
+            "rooms": room_compliance.get("rooms", []),
+        },
+        "structural_grid": structural_grid,
     }

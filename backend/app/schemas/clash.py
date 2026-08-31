@@ -86,14 +86,70 @@ class SolarGainOut(BaseModel):
     summary: Optional[str] = None
 
 
+class RoomComplianceItemOut(BaseModel):
+    room_id: str
+    area_sq_m: float = 0.0
+    area_sq_ft: float = 0.0
+    window_to_floor_ratio: float = 0.0
+    lighting_status: Literal["PASSED", "WARNING"] = "WARNING"
+    code_status: Literal["PASSED", "WARNING"] = "WARNING"
+    min_dimension_m: float = 0.0
+    opening_ids: List[str] = Field(default_factory=list)
+    recommendation: Optional[str] = None
+
+
+class RoomComplianceOut(BaseModel):
+    status: Literal["PASSED", "WARNING"] = "WARNING"
+    lighting_status: Literal["PASSED", "WARNING"] = "WARNING"
+    code_status: Literal["PASSED", "WARNING"] = "WARNING"
+    lighting_summary: Optional[str] = None
+    code_summary: Optional[str] = None
+    summary: Optional[str] = None
+    rooms: List[RoomComplianceItemOut] = Field(default_factory=list)
+
+
+class LightingVentilationOut(BaseModel):
+    status: Literal["PASSED", "WARNING"] = "WARNING"
+    summary: Optional[str] = None
+    min_window_to_floor_ratio: float = 0.10
+    rooms: List[RoomComplianceItemOut] = Field(default_factory=list)
+
+
+class StructuralGridOut(BaseModel):
+    status: Literal["CLASH_FREE", "REVIEW_REQUIRED"] = "CLASH_FREE"
+    synthesis_mode: str = "AI-GSL"
+    column_count: int = 0
+    clash_free: bool = True
+    clashes_count: int = 0
+    summary: Optional[str] = None
+    recommendation: Optional[str] = None
+
+
+class OpeningScheduleItemOut(BaseModel):
+    id: str
+    name: str
+    size: str
+    type: str
+
+
+class OpeningsScheduleOut(BaseModel):
+    total_doors: int = 0
+    total_windows: int = 0
+    doors_list: List[OpeningScheduleItemOut] = Field(default_factory=list)
+    windows_list: List[OpeningScheduleItemOut] = Field(default_factory=list)
+
+
 class ArchitecturalAuditOut(BaseModel):
-    """Passive design + structural integrity audit bundle."""
+    """Passive design + code compliance + structural synthesis audit bundle."""
 
     wall_classifications: WallClassificationsOut = Field(
         default_factory=WallClassificationsOut
     )
     cross_ventilation: CrossVentilationOut
     solar_gain: SolarGainOut
+    room_compliance: Optional[RoomComplianceOut] = None
+    lighting_ventilation: Optional[LightingVentilationOut] = None
+    structural_grid: Optional[StructuralGridOut] = None
 
 
 
@@ -218,6 +274,7 @@ class ClashDetectionResult(BaseModel):
     clashes: List[ClashOut]
     recommendations: List[GcrRecommendationOut] = Field(default_factory=list)
     architectural_audit: Optional[ArchitecturalAuditOut] = None
+    openings_schedule: Optional[OpeningsScheduleOut] = None
     detections: List[DetectionOut] = Field(
         default_factory=list,
         description="Combined arch + struct + wall detections (frontend alias)",

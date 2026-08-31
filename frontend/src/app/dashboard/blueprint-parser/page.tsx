@@ -2,7 +2,7 @@
 
 import { BlueprintParserWorkspace } from "@/components/dashboard/architect/BlueprintParserWorkspace";
 
-/** Blueprint Parser — 2D inspection, 3D BIM extrusion, and AI Concept Studio staging. */
+/** AI Architectural Code Compliance & Generative Structural Synthesizer (single-upload). */
 export default function BlueprintParserPage() {
   return <BlueprintParserWorkspace />;
 }
