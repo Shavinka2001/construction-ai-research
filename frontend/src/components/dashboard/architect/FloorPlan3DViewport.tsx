@@ -127,6 +127,12 @@ const RIDGE_Y = WALL_HEIGHT + 1.75;
 const EAVE_OVERHANG = 0.4;
 const DOOR_OPEN_ANGLE = (30 * Math.PI) / 180;
 const EYE_LEVEL = 1.62;
+const WALK_SPEED = 4.0;
+const SPRINT_SPEED = 7.0;
+const HEAD_BOB_AMPLITUDE = 0.04;
+const LOOK_SENSITIVITY = 0.0022;
+const LOOK_DAMPING = 0.14;
+const TELEPORT_DURATION_MS = 900;
 const SLAB_PAD = 0.5;
 
 // Door assembly: the leaf plus its jambs define how wide a hole the masonry
@@ -1627,6 +1633,7 @@ type HouseBuildResult = {
   structuralWallCount: number;
   doorsMounted: number;
   windowsMounted: number;
+  walkthroughNav: WalkthroughNavPoint[];
 };
 
 type InferredRoom = {
@@ -1635,6 +1642,31 @@ type InferredRoom = {
   cz: number;
   areaSqM: number;
   areaSqFt: number;
+};
+
+type WalkthroughNavPoint = {
+  id: string;
+  label: string;
+  emoji: string;
+  x: number;
+  z: number;
+  lookAtX: number;
+  lookAtZ: number;
+};
+
+type WalkthroughZone = WalkthroughNavPoint & {
+  radius: number;
+};
+
+type TeleportState = {
+  fromX: number;
+  fromZ: number;
+  fromYaw: number;
+  toX: number;
+  toZ: number;
+  toYaw: number;
+  startMs: number;
+  durationMs: number;
 };
 
 function formatDimensionLabel(lengthM: number): string {
@@ -1903,6 +1935,99 @@ function selectDimensionRunIndices(
   return selected;
 }
 
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function buildWalkthroughNavPoints(
+  runs: WallRun[],
+  cutout: CornerCutout | null,
+  bounds: WallBounds
+): WalkthroughNavPoint[] {
+  const inferred = inferRoomsFromRuns(runs, cutout).sort((a, b) => b.areaSqM - a.areaSqM);
+  const cx = (bounds.minX + bounds.maxX) / 2;
+  const cz = (bounds.minZ + bounds.maxZ) / 2;
+  const spanX = bounds.maxX - bounds.minX;
+  const spanZ = bounds.maxZ - bounds.minZ;
+
+  const slotDefs: Array<{ id: string; label: string; emoji: string }> = [
+    { id: "living", label: "Living Area", emoji: "🛋️" },
+    { id: "bed1", label: "Bedroom 1", emoji: "🛏️" },
+    { id: "bed2", label: "Bedroom 2", emoji: "🛏️" },
+    { id: "dining", label: "Dining/Pantry", emoji: "🍳" },
+  ];
+
+  const fallbackOffsets: Array<[number, number]> = [
+    [0, -spanZ * 0.12],
+    [-spanX * 0.22, spanZ * 0.1],
+    [spanX * 0.22, spanZ * 0.1],
+    [0, spanZ * 0.22],
+  ];
+
+  const points: WalkthroughNavPoint[] = slotDefs.map((slot, i) => {
+    const room = inferred[i];
+    if (room) {
+      return {
+        ...slot,
+        x: room.cx,
+        z: room.cz,
+        lookAtX: cx,
+        lookAtZ: cz,
+      };
+    }
+    const [ox, oz] = fallbackOffsets[i] ?? [0, 0];
+    return {
+      ...slot,
+      x: cx + ox,
+      z: cz + oz,
+      lookAtX: cx,
+      lookAtZ: cz,
+    };
+  });
+
+  points.push({
+    id: "entrance",
+    label: "Front Entrance",
+    emoji: "🚪",
+    x: cx,
+    z: bounds.maxZ - Math.max(0.65, spanZ * 0.08),
+    lookAtX: cx,
+    lookAtZ: cz,
+  });
+
+  return points;
+}
+
+function navPointsToZones(points: WalkthroughNavPoint[]): WalkthroughZone[] {
+  return points.map((p) => ({
+    ...p,
+    radius: p.id === "entrance" ? 1.35 : 2.1,
+  }));
+}
+
+function resolveRoomLabel(x: number, z: number, zones: WalkthroughZone[]): string {
+  let best: WalkthroughZone | null = null;
+  let bestDist = Infinity;
+  for (const zone of zones) {
+    const dist = Math.hypot(x - zone.x, z - zone.z);
+    if (dist <= zone.radius && dist < bestDist) {
+      best = zone;
+      bestDist = dist;
+    }
+  }
+  return best?.label ?? "Interior Hallway";
+}
+
+function yawToward(fromX: number, fromZ: number, toX: number, toZ: number): number {
+  return Math.atan2(toX - fromX, toZ - fromZ);
+}
+
+function applyFirstPersonRotation(camera: THREE.PerspectiveCamera, yaw: number, pitch: number) {
+  camera.rotation.order = "YXZ";
+  camera.rotation.y = yaw;
+  camera.rotation.x = pitch;
+}
+
 function roomNameForArea(areaSqFt: number, index: number): string {
   if (areaSqFt >= 200) return "Living Room";
   if (areaSqFt >= 140) return index % 2 === 0 ? "Bedroom 1" : "Bedroom 2";
@@ -2152,6 +2277,7 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuild
       structuralWallCount: 0,
       doorsMounted: 0,
       windowsMounted: 0,
+      walkthroughNav: [],
     };
   }
 
@@ -2353,12 +2479,14 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuild
 
   const dimensionsGroup = buildDimensionOverlay(allRuns, exterior, cutout);
   const roofGroup = addDynamicRoofAndSlab(ctx, closedBounds, cutout);
+  const walkthroughNav = buildWalkthroughNavPoints(allRuns, cutout, closedBounds);
   return {
     roofGroup,
     dimensionsGroup,
     structuralWallCount,
     doorsMounted,
     windowsMounted,
+    walkthroughNav,
   };
 }
 
@@ -2386,11 +2514,25 @@ export function FloorPlan3DViewport({
   const animationFrameIdRef = useRef<number | null>(null);
   const isWalkthroughRef = useRef(false);
   const keysPressed = useRef<Record<string, boolean>>({});
+  const walkthroughNavRef = useRef<WalkthroughNavPoint[]>([]);
+  const walkthroughZonesRef = useRef<WalkthroughZone[]>([]);
+  const walkClockRef = useRef<THREE.Clock | null>(null);
+  const lookYawRef = useRef(0);
+  const lookPitchRef = useRef(0);
+  const targetYawRef = useRef(0);
+  const targetPitchRef = useRef(0);
+  const isDraggingLookRef = useRef(false);
+  const lastPointerRef = useRef({ x: 0, y: 0 });
+  const teleportRef = useRef<TeleportState | null>(null);
 
   const [isNightMode, setIsNightMode] = useState(false);
   const [showRoof, setShowRoof] = useState(false);
   const [showDimensions, setShowDimensions] = useState(true);
   const [isWalkthrough, setIsWalkthrough] = useState(false);
+  const [currentRoomLabel, setCurrentRoomLabel] = useState("Interior");
+  const [activeNavId, setActiveNavId] = useState<string | null>(null);
+  const [walkthroughNavPoints, setWalkthroughNavPoints] = useState<WalkthroughNavPoint[]>([]);
+  const currentRoomRef = useRef("Interior");
 
   const blueprintData = useMemo(
     () => resolveBlueprintData(data, detections, hasLiveResult),
@@ -2534,6 +2676,9 @@ export function FloorPlan3DViewport({
       const built = buildDynamicHouse(buildCtx, blueprintData);
       roofGroupRef.current = built.roofGroup;
       dimensionsGroupRef.current = built.dimensionsGroup;
+      walkthroughNavRef.current = built.walkthroughNav;
+      walkthroughZonesRef.current = navPointsToZones(built.walkthroughNav);
+      setWalkthroughNavPoints(built.walkthroughNav);
       dimensionsGroupRef.current.visible = showDimensions;
       if (built.roofGroup) {
         built.roofGroup.visible = showRoof;
@@ -2543,34 +2688,86 @@ export function FloorPlan3DViewport({
     } else {
       roofGroupRef.current = null;
       dimensionsGroupRef.current = null;
+      walkthroughNavRef.current = [];
+      walkthroughZonesRef.current = [];
+      setWalkthroughNavPoints([]);
     }
 
-    const clock = new THREE.Clock();
+    const walkClock = new THREE.Clock();
+    walkClockRef.current = walkClock;
     const animate = () => {
       animationFrameIdRef.current = requestAnimationFrame(animate);
 
       if (isWalkthroughRef.current && cameraRef.current) {
-        const dt = Math.min(clock.getDelta(), 0.05);
-        const speed = 4.5 * dt;
-        const dir = new THREE.Vector3();
-        cameraRef.current.getWorldDirection(dir);
-        dir.y = 0;
-        dir.normalize();
-        const side = new THREE.Vector3(-dir.z, 0, dir.x);
+        const camera = cameraRef.current;
+        const dt = Math.min(walkClock.getDelta(), 0.05);
+        const teleport = teleportRef.current;
 
-        if (keysPressed.current["w"] || keysPressed.current["arrowup"]) {
-          cameraRef.current.position.addScaledVector(dir, speed);
+        lookYawRef.current += (targetYawRef.current - lookYawRef.current) * LOOK_DAMPING;
+        lookPitchRef.current +=
+          (targetPitchRef.current - lookPitchRef.current) * LOOK_DAMPING;
+        applyFirstPersonRotation(camera, lookYawRef.current, lookPitchRef.current);
+
+        if (teleport) {
+          const elapsed = performance.now() - teleport.startMs;
+          const t = Math.min(1, elapsed / teleport.durationMs);
+          const eased = easeInOutCubic(t);
+          camera.position.x = teleport.fromX + (teleport.toX - teleport.fromX) * eased;
+          camera.position.z = teleport.fromZ + (teleport.toZ - teleport.fromZ) * eased;
+          camera.position.y = EYE_LEVEL;
+          const yaw =
+            teleport.fromYaw + (teleport.toYaw - teleport.fromYaw) * eased;
+          lookYawRef.current = yaw;
+          targetYawRef.current = yaw;
+          lookPitchRef.current = 0;
+          targetPitchRef.current = 0;
+          applyFirstPersonRotation(camera, yaw, 0);
+          if (t >= 1) teleportRef.current = null;
+        } else {
+          const sprinting = keysPressed.current["shift"];
+          const speed = (sprinting ? SPRINT_SPEED : WALK_SPEED) * dt;
+          const dir = new THREE.Vector3();
+          camera.getWorldDirection(dir);
+          dir.y = 0;
+          if (dir.lengthSq() > 1e-6) dir.normalize();
+          const side = new THREE.Vector3(-dir.z, 0, dir.x);
+
+          let moving = false;
+          if (keysPressed.current["w"] || keysPressed.current["arrowup"]) {
+            camera.position.addScaledVector(dir, speed);
+            moving = true;
+          }
+          if (keysPressed.current["s"] || keysPressed.current["arrowdown"]) {
+            camera.position.addScaledVector(dir, -speed);
+            moving = true;
+          }
+          if (keysPressed.current["a"] || keysPressed.current["arrowleft"]) {
+            camera.position.addScaledVector(side, -speed);
+            moving = true;
+          }
+          if (keysPressed.current["d"] || keysPressed.current["arrowright"]) {
+            camera.position.addScaledVector(side, speed);
+            moving = true;
+          }
+
+          const bob = moving
+            ? Math.sin(walkClock.getElapsedTime() * (sprinting ? 14 : 9)) *
+              HEAD_BOB_AMPLITUDE
+            : 0;
+          camera.position.y = EYE_LEVEL + bob;
         }
-        if (keysPressed.current["s"] || keysPressed.current["arrowdown"]) {
-          cameraRef.current.position.addScaledVector(dir, -speed);
+
+        const room = teleport
+          ? currentRoomRef.current
+          : resolveRoomLabel(
+              camera.position.x,
+              camera.position.z,
+              walkthroughZonesRef.current
+            );
+        if (room !== currentRoomRef.current) {
+          currentRoomRef.current = room;
+          setCurrentRoomLabel(room);
         }
-        if (keysPressed.current["a"] || keysPressed.current["arrowleft"]) {
-          cameraRef.current.position.addScaledVector(side, -speed);
-        }
-        if (keysPressed.current["d"] || keysPressed.current["arrowright"]) {
-          cameraRef.current.position.addScaledVector(side, speed);
-        }
-        cameraRef.current.position.y = EYE_LEVEL;
       } else {
         controls.update();
       }
@@ -2633,6 +2830,9 @@ export function FloorPlan3DViewport({
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       keysPressed.current[e.key.toLowerCase()] = true;
+      if (e.key === "Escape" && isWalkthroughRef.current) {
+        exitWalkthroughRef.current?.();
+      }
     };
     const onKeyUp = (e: KeyboardEvent) => {
       keysPressed.current[e.key.toLowerCase()] = false;
@@ -2645,24 +2845,113 @@ export function FloorPlan3DViewport({
     };
   }, []);
 
+  const exitWalkthroughRef = useRef<(() => void) | null>(null);
+
+  const teleportToNavPoint = (point: WalkthroughNavPoint) => {
+    if (!cameraRef.current || !isWalkthroughRef.current) return;
+    const camera = cameraRef.current;
+    const toYaw = yawToward(point.x, point.z, point.lookAtX, point.lookAtZ);
+    teleportRef.current = {
+      fromX: camera.position.x,
+      fromZ: camera.position.z,
+      fromYaw: lookYawRef.current,
+      toX: point.x,
+      toZ: point.z,
+      toYaw,
+      startMs: performance.now(),
+      durationMs: TELEPORT_DURATION_MS,
+    };
+    setActiveNavId(point.id);
+    setCurrentRoomLabel(point.label);
+    currentRoomRef.current = point.label;
+  };
+
   const enterWalkthrough = () => {
     if (!cameraRef.current || !controlsRef.current) return;
     setIsWalkthrough(true);
     setShowRoof(false);
     controlsRef.current.enabled = false;
-    cameraRef.current.position.set(0, EYE_LEVEL, 3);
-    cameraRef.current.lookAt(0, EYE_LEVEL, 0);
+    const entrance =
+      walkthroughNavRef.current.find((p) => p.id === "entrance") ??
+      walkthroughNavRef.current[0];
+    const startX = entrance?.x ?? 0;
+    const startZ = entrance?.z ?? 3;
+    const startYaw = entrance
+      ? yawToward(startX, startZ, entrance.lookAtX, entrance.lookAtZ)
+      : Math.PI;
+    lookYawRef.current = startYaw;
+    targetYawRef.current = startYaw;
+    lookPitchRef.current = 0;
+    targetPitchRef.current = 0;
+    cameraRef.current.position.set(startX, EYE_LEVEL, startZ);
+    applyFirstPersonRotation(cameraRef.current, startYaw, 0);
+    teleportRef.current = null;
+    walkClockRef.current?.start();
+    setActiveNavId(entrance?.id ?? null);
+    setCurrentRoomLabel(entrance?.label ?? "Front Entrance");
+    currentRoomRef.current = entrance?.label ?? "Front Entrance";
   };
 
   const exitWalkthrough = () => {
     if (!cameraRef.current || !controlsRef.current) return;
     setIsWalkthrough(false);
     setShowRoof(true);
+    setActiveNavId(null);
+    teleportRef.current = null;
+    isDraggingLookRef.current = false;
     controlsRef.current.enabled = true;
+    cameraRef.current.rotation.set(0, 0, 0);
     cameraRef.current.position.set(0, 11, 16);
     controlsRef.current.target.set(0, 1.2, 0);
     controlsRef.current.update();
   };
+
+  exitWalkthroughRef.current = exitWalkthrough;
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !isWalkthrough) return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      isDraggingLookRef.current = true;
+      lastPointerRef.current = { x: e.clientX, y: e.clientY };
+      container.setPointerCapture(e.pointerId);
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!isDraggingLookRef.current || !isWalkthroughRef.current) return;
+      const dx = e.clientX - lastPointerRef.current.x;
+      const dy = e.clientY - lastPointerRef.current.y;
+      lastPointerRef.current = { x: e.clientX, y: e.clientY };
+      targetYawRef.current -= dx * LOOK_SENSITIVITY;
+      targetPitchRef.current = Math.max(
+        -Math.PI / 2 + 0.08,
+        Math.min(Math.PI / 2 - 0.08, targetPitchRef.current - dy * LOOK_SENSITIVITY)
+      );
+    };
+
+    const endDrag = (e: PointerEvent) => {
+      isDraggingLookRef.current = false;
+      if (container.hasPointerCapture(e.pointerId)) {
+        container.releasePointerCapture(e.pointerId);
+      }
+    };
+
+    container.addEventListener("pointerdown", onPointerDown);
+    container.addEventListener("pointermove", onPointerMove);
+    container.addEventListener("pointerup", endDrag);
+    container.addEventListener("pointercancel", endDrag);
+    container.addEventListener("pointerleave", endDrag);
+
+    return () => {
+      container.removeEventListener("pointerdown", onPointerDown);
+      container.removeEventListener("pointermove", onPointerMove);
+      container.removeEventListener("pointerup", endDrag);
+      container.removeEventListener("pointercancel", endDrag);
+      container.removeEventListener("pointerleave", endDrag);
+    };
+  }, [isWalkthrough]);
 
   const wallCount = useMemo(() => {
     const fromDetections =
@@ -2754,7 +3043,9 @@ export function FloorPlan3DViewport({
       <div className="relative p-4 sm:p-5">
         <div
           ref={containerRef}
-          className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-950 shadow-inner sm:aspect-[16/10]"
+          className={`relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-950 shadow-inner sm:aspect-[16/10] ${
+            isWalkthrough ? "cursor-grab active:cursor-grabbing" : ""
+          }`}
         />
 
         {!hasRealWalls && (
@@ -2774,16 +3065,55 @@ export function FloorPlan3DViewport({
           </div>
         )}
 
-        <div className="absolute bottom-8 right-8 z-10">
-          {isWalkthrough ? (
-            <button
-              type="button"
-              onClick={exitWalkthrough}
-              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-white/95 px-4 py-2 text-xs font-semibold text-rose-700 shadow-xl backdrop-blur-sm"
-            >
-              <X className="h-4 w-4" /> Exit Walkthrough
-            </button>
-          ) : (
+        {isWalkthrough && (
+          <>
+            <div className="pointer-events-none absolute inset-x-0 top-6 z-30 flex justify-center px-4 sm:top-8">
+              <div className="max-w-2xl rounded-2xl border border-white/20 bg-slate-900/55 px-4 py-2.5 text-center shadow-2xl backdrop-blur-xl sm:px-6">
+                <p className="text-[11px] font-semibold tracking-wide text-white sm:text-xs">
+                  📍 Inside: {currentRoomLabel} • Elevation: {EYE_LEVEL.toFixed(2)}m • WASD to
+                  move • Hold Shift to Sprint
+                </p>
+                <p className="mt-0.5 text-[10px] text-slate-300 sm:hidden">
+                  Drag to look around
+                </p>
+              </div>
+            </div>
+
+            <div className="absolute right-6 top-6 z-30 sm:right-8 sm:top-8">
+              <button
+                type="button"
+                onClick={exitWalkthrough}
+                className="inline-flex items-center gap-2 rounded-full border border-rose-300/40 bg-rose-950/75 px-4 py-2 text-xs font-bold text-rose-100 shadow-2xl backdrop-blur-md transition-all hover:bg-rose-900/90"
+              >
+                <X className="h-4 w-4" />
+                Exit Walkthrough (Esc)
+              </button>
+            </div>
+
+            <div className="absolute inset-x-0 bottom-6 z-30 flex justify-center px-3 sm:bottom-8 sm:px-6">
+              <div className="flex max-w-full items-center gap-1.5 overflow-x-auto rounded-2xl border border-white/15 bg-slate-900/50 p-1.5 shadow-2xl backdrop-blur-xl sm:gap-2 sm:p-2">
+                {walkthroughNavPoints.map((point) => (
+                  <button
+                    key={point.id}
+                    type="button"
+                    onClick={() => teleportToNavPoint(point)}
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-[10px] font-semibold transition-all sm:px-3.5 sm:text-xs ${
+                      activeNavId === point.id
+                        ? "border-[#D4AF37]/70 bg-[#D4AF37]/20 text-white shadow-inner"
+                        : "border-white/10 bg-white/5 text-slate-100 hover:border-white/25 hover:bg-white/10"
+                    }`}
+                  >
+                    <span aria-hidden>{point.emoji}</span>
+                    {point.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {!isWalkthrough && (
+          <div className="absolute bottom-8 right-8 z-10">
             <button
               type="button"
               onClick={enterWalkthrough}
@@ -2794,8 +3124,8 @@ export function FloorPlan3DViewport({
               <Eye className="h-4 w-4 text-slate-600" />
               Walk Inside House
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
           <span className="inline-flex items-center gap-1.5">
