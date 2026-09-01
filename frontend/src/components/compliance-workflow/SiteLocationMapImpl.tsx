@@ -5,6 +5,15 @@ import L from "leaflet";
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crosshair, MapPin, Navigation2 } from "lucide-react";
+import {
+  ESRI_ATTRIBUTION,
+  ESRI_IMAGERY,
+  ESRI_LABELS,
+  MAJOR_CITIES,
+  SRI_LANKA_CENTER,
+  type MajorCity,
+} from "@/lib/sri-lanka-map";
+import { cn } from "@/lib/utils";
 
 export type SitePin = {
   lat: number;
@@ -12,22 +21,14 @@ export type SitePin = {
 };
 
 type SiteLocationMapImplProps = {
-  /** Confirmed pin from workflow context (shown when returning to Step 1). */
   confirmedPin?: SitePin | null;
   onConfirm: (pin: SitePin) => void;
-  /** When true, disables map interaction and confirm button. */
   disabled?: boolean;
-  /** Brief loading state while zone analysis runs after confirm. */
   confirming?: boolean;
 };
 
-/** Sri Lanka centroid — default viewport for ConstructAI compliance workflow. */
-const DEFAULT_CENTER: [number, number] = [7.8731, 80.7718];
 const DEFAULT_ZOOM = 8;
-
-/** Esri World Imagery — free satellite tiles, no API key. */
-const SATELLITE_TILES =
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const CITY_FLY_ZOOM = 13;
 
 function createPulsePinIcon(): L.DivIcon {
   return L.divIcon({
@@ -46,26 +47,37 @@ function createPulsePinIcon(): L.DivIcon {
 function MapClickHandler({
   onSelect,
   disabled,
+  onManualSelect,
 }: {
   onSelect: (lat: number, lon: number) => void;
   disabled?: boolean;
+  onManualSelect: () => void;
 }) {
   useMapEvents({
     click(e) {
       if (disabled) return;
+      onManualSelect();
       onSelect(e.latlng.lat, e.latlng.lng);
     },
   });
   return null;
 }
 
-function RecenterOnPin({ pin }: { pin: SitePin | null }) {
+function FlyToPin({
+  pin,
+  zoom,
+}: {
+  pin: SitePin | null;
+  zoom?: number;
+}) {
   const map = useMap();
 
   useEffect(() => {
     if (!pin) return;
-    map.flyTo([pin.lat, pin.lon], Math.max(map.getZoom(), 14), { duration: 0.8 });
-  }, [map, pin?.lat, pin?.lon]);
+    map.flyTo([pin.lat, pin.lon], zoom ?? Math.max(map.getZoom(), CITY_FLY_ZOOM), {
+      duration: 0.85,
+    });
+  }, [map, pin?.lat, pin?.lon, zoom]);
 
   return null;
 }
@@ -76,6 +88,13 @@ function formatCoord(value: number, positiveSuffix: string, negativeSuffix: stri
   return `${abs}° ${suffix}`;
 }
 
+function matchCityForPin(pin: SitePin): MajorCity | undefined {
+  return MAJOR_CITIES.find(
+    (city) =>
+      Math.abs(city.lat - pin.lat) < 0.02 && Math.abs(city.lon - pin.lon) < 0.02
+  );
+}
+
 export default function SiteLocationMapImpl({
   confirmedPin,
   onConfirm,
@@ -84,17 +103,30 @@ export default function SiteLocationMapImpl({
 }: SiteLocationMapImplProps) {
   const pinIcon = useMemo(() => createPulsePinIcon(), []);
   const [draftPin, setDraftPin] = useState<SitePin | null>(null);
+  const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
+  const [flyZoom, setFlyZoom] = useState<number | undefined>(undefined);
 
   const displayPin = draftPin ?? confirmedPin ?? null;
   const hasDraft = draftPin !== null;
-  const isConfirmed = confirmedPin !== null && confirmedPin !== undefined;
+  const isConfirmed = confirmedPin != null;
   const canConfirm = hasDraft && !disabled && !confirming;
+  const matchedCity = displayPin ? matchCityForPin(displayPin) : undefined;
+  const activeCityId = selectedCityId ?? matchedCity?.id ?? null;
 
-  const handleMapClick = useCallback(
-    (lat: number, lon: number) => {
-      setDraftPin({ lat, lon });
+  const handleMapClick = useCallback((lat: number, lon: number) => {
+    setSelectedCityId(null);
+    setFlyZoom(undefined);
+    setDraftPin({ lat, lon });
+  }, []);
+
+  const handleCitySelect = useCallback(
+    (city: MajorCity) => {
+      if (disabled || confirming) return;
+      setSelectedCityId(city.id);
+      setFlyZoom(city.zoom);
+      setDraftPin({ lat: city.lat, lon: city.lon });
     },
-    [],
+    [disabled, confirming]
   );
 
   const handleConfirm = useCallback(() => {
@@ -104,28 +136,60 @@ export default function SiteLocationMapImpl({
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      {/* Map canvas */}
       <div className="relative h-[min(52vh,420px)] min-h-[320px] w-full">
         <MapContainer
-          center={displayPin ? [displayPin.lat, displayPin.lon] : DEFAULT_CENTER}
-          zoom={displayPin ? 14 : DEFAULT_ZOOM}
+          center={displayPin ? [displayPin.lat, displayPin.lon] : SRI_LANKA_CENTER}
+          zoom={displayPin ? CITY_FLY_ZOOM : DEFAULT_ZOOM}
           className="h-full w-full z-0"
           scrollWheelZoom
           zoomControl
         >
-          <TileLayer
-            attribution='Tiles &copy; <a href="https://www.esri.com/">Esri</a>'
-            url={SATELLITE_TILES}
-            maxZoom={19}
+          {/* Hybrid basemap: satellite imagery + roads / city labels */}
+          <TileLayer url={ESRI_IMAGERY} attribution={ESRI_ATTRIBUTION} maxZoom={19} />
+          <TileLayer url={ESRI_LABELS} maxZoom={19} pane="overlayPane" />
+
+          <MapClickHandler
+            onSelect={handleMapClick}
+            disabled={disabled || confirming}
+            onManualSelect={() => setSelectedCityId(null)}
           />
-          <MapClickHandler onSelect={handleMapClick} disabled={disabled || confirming} />
-          {displayPin && <RecenterOnPin pin={displayPin} />}
+          {displayPin && <FlyToPin pin={displayPin} zoom={flyZoom} />}
           {displayPin && (
             <Marker position={[displayPin.lat, displayPin.lon]} icon={pinIcon} />
           )}
         </MapContainer>
 
-        {/* Click hint — fades once a pin exists */}
+        {/* Major city quick-select */}
+        <div className="absolute bottom-4 left-4 right-4 z-[400] sm:right-auto">
+          <div className="inline-flex max-w-full flex-wrap gap-2 rounded-xl border border-slate-200/80 bg-white/95 p-2 shadow-lg backdrop-blur-md">
+            <span className="hidden px-1 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:inline">
+              Quick select
+            </span>
+            {MAJOR_CITIES.map((city) => {
+              const isActive = activeCityId === city.id;
+              return (
+                <motion.button
+                  key={city.id}
+                  type="button"
+                  disabled={disabled || confirming}
+                  onClick={() => handleCitySelect(city)}
+                  whileHover={!disabled && !confirming ? { scale: 1.03 } : undefined}
+                  whileTap={!disabled && !confirming ? { scale: 0.97 } : undefined}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                    isActive
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "bg-slate-50 text-slate-700 hover:bg-slate-100",
+                    (disabled || confirming) && "cursor-not-allowed opacity-50"
+                  )}
+                >
+                  {city.name}
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+
         <AnimatePresence>
           {!displayPin && (
             <motion.div
@@ -136,13 +200,12 @@ export default function SiteLocationMapImpl({
             >
               <div className="flex items-center gap-2 rounded-full border border-white/60 bg-white/90 px-4 py-2 text-xs font-medium text-slate-700 shadow-lg backdrop-blur-sm">
                 <Crosshair className="h-3.5 w-3.5 text-blue-700" />
-                Click anywhere on the map to drop your site pin
+                Click the map or choose a major city below
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Site Coordinates floating card */}
         <AnimatePresence>
           {displayPin && (
             <motion.div
@@ -163,7 +226,11 @@ export default function SiteLocationMapImpl({
                       Site Coordinates
                     </p>
                     <p className="text-xs text-slate-600">
-                      {isConfirmed && !hasDraft ? "Confirmed location" : "Draft selection"}
+                      {matchedCity
+                        ? `${matchedCity.name} · ${isConfirmed && !hasDraft ? "Confirmed" : "Draft"}`
+                        : isConfirmed && !hasDraft
+                          ? "Confirmed location"
+                          : "Draft selection"}
                     </p>
                   </div>
                 </div>
@@ -194,7 +261,6 @@ export default function SiteLocationMapImpl({
         </AnimatePresence>
       </div>
 
-      {/* Confirm bar */}
       <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/80 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-2 text-sm text-slate-600">
           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
@@ -203,7 +269,7 @@ export default function SiteLocationMapImpl({
               ? hasDraft
                 ? "Review the coordinates above, then confirm to run zone analysis."
                 : "Location confirmed — zone analysis complete."
-              : "Select your land parcel on the satellite map to begin."}
+              : "Select a major city or drop a pin on the hybrid map to begin."}
           </p>
         </div>
 
@@ -213,12 +279,12 @@ export default function SiteLocationMapImpl({
           onClick={handleConfirm}
           whileHover={canConfirm ? { scale: 1.02 } : undefined}
           whileTap={canConfirm ? { scale: 0.98 } : undefined}
-          className={[
+          className={cn(
             "inline-flex shrink-0 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors",
             canConfirm
               ? "bg-slate-900 text-white shadow-md hover:bg-slate-800"
-              : "cursor-not-allowed bg-slate-200 text-slate-400",
-          ].join(" ")}
+              : "cursor-not-allowed bg-slate-200 text-slate-400"
+          )}
         >
           {confirming ? (
             <>

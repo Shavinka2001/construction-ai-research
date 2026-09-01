@@ -12,21 +12,26 @@ const RISK_STYLES = {
   High: { bg: "bg-red-50", text: "text-red-700", border: "border-red-100" },
 } as const;
 
-export function StepGeospatialIdentification() {
-  const { pin, zone, setPin } = useComplianceWorkflow();
+export function StepGeospatialIdentification({
+  autoAdvance = true,
+}: {
+  /** When true (default), confirming a pin jumps to Step 2 in the full wizard. */
+  autoAdvance?: boolean;
+} = {}) {
+  const { pin, zone, confirmLocation } = useComplianceWorkflow();
   const [confirming, setConfirming] = useState(false);
 
   const handleConfirm = useCallback(
     async (selected: SitePin) => {
       setConfirming(true);
       try {
-        setPin(selected);
+        confirmLocation(selected, { advance: autoAdvance });
       } finally {
-        await new Promise((r) => setTimeout(r, 400));
+        await new Promise((r) => setTimeout(r, 500));
         setConfirming(false);
       }
     },
-    [setPin],
+    [confirmLocation, autoAdvance],
   );
 
   const riskStyle = zone ? RISK_STYLES[zone.riskBand] : null;
@@ -48,9 +53,9 @@ export function StepGeospatialIdentification() {
           Select your land location
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-slate-500">
-          Drop a pin on the satellite map to capture precise coordinates. Confirm
-          your selection to detect the regulatory zone and unlock the approval
-          roadmap.
+          Drop a pin on the satellite map, then confirm to run mock geofencing.
+          Your approval roadmap in Step 2 is generated automatically from the
+          detected zone.
         </p>
       </div>
 
@@ -74,11 +79,14 @@ export function StepGeospatialIdentification() {
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                  Detected Zone
+                  Zone Detection
                 </p>
                 <h3 className="text-lg font-bold text-slate-900">{zone.label}</h3>
                 <p className="mt-1 max-w-xl text-sm text-slate-600">
                   {zone.description}
+                </p>
+                <p className="mt-2 font-mono text-[10px] text-slate-400">
+                  Rule: {zone.matchedRule}
                 </p>
               </div>
             </div>

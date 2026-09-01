@@ -64,7 +64,7 @@ export function AuthorityDashboard({ user }: AuthorityDashboardProps) {
       <div className="grid gap-6 lg:grid-cols-5 lg:gap-8">
         <div className="space-y-6 lg:col-span-3">
           <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-luxury sm:p-6">
-            <StepGeospatialIdentification />
+            <StepGeospatialIdentification autoAdvance={false} />
           </div>
         </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin, Route } from "lucide-react";
 import {
   useComplianceWorkflow,
   useComplianceWorkflowOptional,
@@ -53,6 +53,8 @@ function ComplianceWorkflowInner() {
     prevStep,
     canAdvanceFromStep,
     zone,
+    pin,
+    roadmap,
     document,
   } = useComplianceWorkflow();
 
@@ -70,25 +72,62 @@ function ComplianceWorkflowInner() {
               ConstructAI Regulatory Wizard
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-500">
-              Four integrated nodes — geospatial zoning, dynamic roadmap,
-              ML document verification, and authority routing — with shared
-              context state.
+              Drop a pin to run mock geofencing, then follow the zone-linked
+              approval roadmap through ML document verification and authority
+              routing.
             </p>
           </div>
-          {zone && (
-            <div className="shrink-0 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
-                Detected Zone
-              </p>
-              <p className="text-sm font-bold text-slate-900">{zone.label}</p>
-            </div>
-          )}
+
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            {zone && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-center"
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
+                  Detected Zone
+                </p>
+                <p className="text-sm font-bold text-slate-900">{zone.label}</p>
+              </motion.div>
+            )}
+            {roadmap.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.08 }}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-center"
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Roadmap Phases
+                </p>
+                <p className="flex items-center justify-center gap-1.5 text-sm font-bold text-slate-900">
+                  <Route className="h-3.5 w-3.5 text-blue-600" />
+                  {roadmap.length} step{roadmap.length !== 1 ? "s" : ""}
+                </p>
+              </motion.div>
+            )}
+          </div>
         </div>
+
+        {pin && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mt-4 flex items-center gap-1.5 text-xs text-slate-500"
+          >
+            <MapPin className="h-3.5 w-3.5" />
+            Site anchor: {pin.lat.toFixed(5)}°, {pin.lon.toFixed(5)}°
+          </motion.p>
+        )}
+
         <div className="mt-6">
           <WorkflowStepHeader
             currentStep={currentStep}
             onStepClick={(step) => {
-              if (step <= currentStep) setStep(step);
+              if (step <= currentStep || (step === 2 && zone != null)) {
+                setStep(step);
+              }
             }}
           />
         </div>
@@ -126,6 +165,9 @@ function ComplianceWorkflowInner() {
 
         <p className="text-xs text-slate-400">
           Step {currentStep} of 4
+          {zone && currentStep >= 2 && (
+            <span className="ml-2 text-blue-600">· {zone.label}</span>
+          )}
           {document.inferenceState === "complete" && currentStep >= 3 && (
             <span className="ml-2 text-emerald-600">· ML inference complete</span>
           )}

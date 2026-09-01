@@ -16,6 +16,7 @@ import {
   type GeoPin,
   type RoadmapStep,
   type ZoneAnalysis,
+  type ZoneType,
 } from "@/lib/compliance-workflow-data";
 import { predictCompliance } from "@/lib/compliance-predict";
 import { extractDocumentText } from "@/lib/extract-document-text";
@@ -39,6 +40,8 @@ type WorkflowState = {
   pin: GeoPin | null;
   zone: ZoneAnalysis | null;
   roadmap: RoadmapStep[];
+  /** Bumps when zone/roadmap is regenerated — drives Step 2 entrance animations. */
+  roadmapGeneration: number;
   activeRoadmapIndex: number;
   document: DocumentState;
 };
@@ -47,7 +50,10 @@ type ComplianceWorkflowContextValue = WorkflowState & {
   setStep: (step: WorkflowStepIndex) => void;
   nextStep: () => void;
   prevStep: () => void;
+  /** Sets pin only — no zone analysis (draft placement on map). */
   setPin: (pin: GeoPin) => void;
+  /** Confirms location, runs mock geofencing, builds roadmap. Optionally advances to Step 2. */
+  confirmLocation: (pin: GeoPin, options?: { advance?: boolean }) => void;
   setActiveRoadmapIndex: (index: number) => void;
   runDocumentInference: (file: File) => Promise<void>;
   canAdvanceFromStep: (step: WorkflowStepIndex) => boolean;
@@ -72,6 +78,7 @@ export function ComplianceWorkflowProvider({ children }: { children: ReactNode }
     pin: null,
     zone: null,
     roadmap: [],
+    roadmapGeneration: 0,
     activeRoadmapIndex: 0,
     document: initialDocument,
   });
@@ -94,17 +101,33 @@ export function ComplianceWorkflowProvider({ children }: { children: ReactNode }
     }));
   }, []);
 
+  const applyZoneDetection = useCallback(
+    (pin: GeoPin, advanceToRoadmap: boolean) => {
+      const zone = analyzeZoneFromPin(pin);
+      const roadmap = buildRoadmap(zone.zoneType as ZoneType);
+      setState((prev) => ({
+        ...prev,
+        pin,
+        zone,
+        roadmap,
+        activeRoadmapIndex: 0,
+        roadmapGeneration: prev.roadmapGeneration + 1,
+        currentStep: advanceToRoadmap && prev.currentStep === 1 ? 2 : prev.currentStep,
+      }));
+    },
+    []
+  );
+
   const setPin = useCallback((pin: GeoPin) => {
-    const zone = analyzeZoneFromPin(pin);
-    const roadmap = buildRoadmap(zone.zoneType);
-    setState((prev) => ({
-      ...prev,
-      pin,
-      zone,
-      roadmap,
-      activeRoadmapIndex: 0,
-    }));
-  }, []);
+    applyZoneDetection(pin, false);
+  }, [applyZoneDetection]);
+
+  const confirmLocation = useCallback(
+    (pin: GeoPin, options?: { advance?: boolean }) => {
+      applyZoneDetection(pin, options?.advance !== false);
+    },
+    [applyZoneDetection]
+  );
 
   const setActiveRoadmapIndex = useCallback((index: number) => {
     setState((prev) => ({ ...prev, activeRoadmapIndex: index }));
@@ -179,6 +202,7 @@ export function ComplianceWorkflowProvider({ children }: { children: ReactNode }
       nextStep,
       prevStep,
       setPin,
+      confirmLocation,
       setActiveRoadmapIndex,
       runDocumentInference,
       canAdvanceFromStep,
@@ -189,6 +213,7 @@ export function ComplianceWorkflowProvider({ children }: { children: ReactNode }
       nextStep,
       prevStep,
       setPin,
+      confirmLocation,
       setActiveRoadmapIndex,
       runDocumentInference,
       canAdvanceFromStep,

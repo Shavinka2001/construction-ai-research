@@ -33,7 +33,7 @@ export function PendingApplicationsPage() {
         <div className="space-y-6 xl:col-span-2">
           <AuthorityReviewQueue />
           <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-luxury sm:p-6">
-            <StepGeospatialIdentification />
+            <StepGeospatialIdentification autoAdvance={false} />
           </div>
         </div>
         <div className="space-y-6">

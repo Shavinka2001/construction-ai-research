@@ -1,4 +1,4 @@
-export type ZoneType = "coastal" | "hilly" | "urban" | "wetland";
+export type ZoneType = "coastal" | "hilly" | "municipal";
 
 export type GeoPin = {
   lat: number;
@@ -11,10 +11,13 @@ export type ZoneAnalysis = {
   description: string;
   riskBand: "Low" | "Moderate" | "High";
   advisory: string;
+  /** Human-readable geofence rule that matched (for UI transparency). */
+  matchedRule: string;
 };
 
 export type RoadmapStep = {
   id: string;
+  phase: number;
   title: string;
   authority: string;
   description: string;
@@ -32,178 +35,137 @@ export type AuthorityContact = {
   lon: number;
 };
 
-/** Mock geospatial zone classifier — Sri Lanka–centric heuristics. */
+export type WorkingHoursRow = {
+  day: string;
+  hours: string;
+};
+
+/** Enriched authority record for Step 4 Authority Locator UI. */
+export type AuthorityProfile = AuthorityContact & {
+  displayName: string;
+  workingHours: WorkingHoursRow[];
+  activeSubmissions: number;
+  avgResponseDays: number;
+};
+
+/** Southern coastal belt — Matara / Galle corridor (mock geofence). */
+export function isSouthernCoastalZone(lat: number, lon: number): boolean {
+  return lat >= 5.85 && lat <= 6.35 && lon >= 80.15 && lon <= 81.0;
+}
+
+/** Central highland slope belt — NBRO landslide screening (mock geofence). */
+export function isLandslideProneZone(lat: number, lon: number): boolean {
+  return lat >= 6.8 && lat <= 7.5 && lon >= 80.4 && lon <= 80.95;
+}
+
+/**
+ * Mock geofencing classifier — maps lat/lng to regulatory zone labels.
+ * Used by Step 1 when the user confirms a map pin.
+ */
+export function classifyZoneFromCoordinates(pin: GeoPin): ZoneAnalysis {
+  return analyzeZoneFromPin(pin);
+}
+
+/** @deprecated Alias — prefer `classifyZoneFromCoordinates`. */
 export function analyzeZoneFromPin(pin: GeoPin): ZoneAnalysis {
   const { lat, lon } = pin;
 
-  if (lon < 80.2 || (lat < 6.55 && lon < 80.6)) {
+  if (isSouthernCoastalZone(lat, lon)) {
     return {
       zoneType: "coastal",
-      label: "Coastal Zone Detected",
+      label: "Coastal Zone — High Risk",
       description:
-        "Site falls within the coastal belt — Coast Conservation Department clearance is required before UDA submission.",
-      riskBand: "Moderate",
-      advisory: "Maintain 50 m buffer from high-water mark per CCD guidelines.",
+        "Southern coastal belt (Matara / Galle). Coast Conservation Department clearance is mandatory before any UDA or municipal submission.",
+      riskBand: "High",
+      advisory:
+        "Maintain a 50 m buffer from the high-water mark and submit CCD Form CCD-01 with erosion study.",
+      matchedRule: "Southern coastal: 5.85°–6.35°N, 80.15°–81.0°E",
     };
   }
 
-  if (lat >= 6.85 && lat <= 7.45 && lon >= 80.45 && lon <= 80.9) {
+  if (isLandslideProneZone(lat, lon)) {
     return {
       zoneType: "hilly",
-      label: "Landslide Prone Area",
+      label: "Landslide Prone Area (NBRO)",
       description:
-        "Central highland slope detected — NBRO geotechnical assessment mandatory prior to foundation design.",
+        "Central highland slope detected. NBRO geotechnical assessment is required prior to foundation design and UDA review.",
       riskBand: "High",
-      advisory: "Submit slope stability report and retain 30% green cover on plot.",
-    };
-  }
-
-  if (lon > 80.95 && lat < 7.8) {
-    return {
-      zoneType: "wetland",
-      label: "Wetland Buffer Zone",
-      description:
-        "Proximity to protected marshland — Central Environmental Authority EIA screening applies.",
-      riskBand: "High",
-      advisory: "No fill material within 100 m of Ramsar-designated boundaries.",
+      advisory:
+        "Submit NBRO slope stability report; retain minimum 30% green cover on the plot.",
+      matchedRule: "Highland slope: 6.8°–7.5°N, 80.4°–80.95°E",
     };
   }
 
   return {
-    zoneType: "urban",
-    label: "Urban Development Zone",
+    zoneType: "municipal",
+    label: "Standard Municipal Area",
     description:
-      "Standard municipal jurisdiction — UDA or local MC approval pathway based on plot extent.",
+      "No special environmental overlay detected. Standard UDA and local municipal council approval pathway applies.",
     riskBand: "Low",
-    advisory: "Verify road width and FAR against MC Development Regulations 2021.",
+    advisory:
+      "Verify road width, FAR, and setbacks against your local MC Development Regulations 2021.",
+    matchedRule: "Default municipal jurisdiction",
   };
 }
 
-const ROADMAP_BY_ZONE: Record<ZoneType, RoadmapStep[]> = {
-  coastal: [
-    {
-      id: "ccd",
-      title: "Coast Conservation Clearance",
-      authority: "Coast Conservation Department",
-      description: "Coastal setback & erosion risk review",
-      estimatedDays: 21,
-    },
-    {
-      id: "uda",
-      title: "UDA Development Permit",
-      authority: "Urban Development Authority",
-      description: "Building plan scrutiny & zoning compliance",
-      estimatedDays: 28,
-    },
-    {
-      id: "mc",
-      title: "Municipal Building Approval",
-      authority: "Local Municipal Council",
-      description: "Construction permit & occupancy certificate",
-      estimatedDays: 14,
-    },
-    {
-      id: "doc",
-      title: "Document Verification",
-      authority: "ConstructAI ML Compliance Engine",
-      description: "AI-assisted plan & inspection audit",
-      estimatedDays: 1,
-    },
-  ],
-  hilly: [
-    {
-      id: "nbro",
-      title: "NBRO Slope Assessment",
-      authority: "National Building Research Organisation",
-      description: "Geotechnical & landslide hazard clearance",
-      estimatedDays: 35,
-    },
-    {
-      id: "uda",
-      title: "UDA Development Permit",
-      authority: "Urban Development Authority",
-      description: "Hill-country zoning & coverage review",
-      estimatedDays: 28,
-    },
-    {
-      id: "mc",
-      title: "Pradeshiya Sabha Approval",
-      authority: "Local Pradeshiya Sabha",
-      description: "Rural building permit issuance",
-      estimatedDays: 18,
-    },
-    {
-      id: "doc",
-      title: "Document Verification",
-      authority: "ConstructAI ML Compliance Engine",
-      description: "AI-assisted plan & inspection audit",
-      estimatedDays: 1,
-    },
-  ],
-  urban: [
-    {
-      id: "uda",
-      title: "UDA Development Permit",
-      authority: "Urban Development Authority",
-      description: "Primary metropolitan approval gate",
-      estimatedDays: 21,
-    },
-    {
-      id: "mc",
-      title: "Municipal Council Permit",
-      authority: "Colombo Municipal Council",
-      description: "Local building regulation enforcement",
-      estimatedDays: 14,
-    },
-    {
-      id: "fire",
-      title: "Fire Safety Clearance",
-      authority: "Fire Service Department",
-      description: "Means of escape & hydrant compliance",
-      estimatedDays: 7,
-    },
-    {
-      id: "doc",
-      title: "Document Verification",
-      authority: "ConstructAI ML Compliance Engine",
-      description: "AI-assisted plan & inspection audit",
-      estimatedDays: 1,
-    },
-  ],
-  wetland: [
-    {
-      id: "cea",
-      title: "CEA Environmental Screening",
-      authority: "Central Environmental Authority",
-      description: "EIA / IEE determination for wetland impact",
-      estimatedDays: 42,
-    },
-    {
-      id: "ccd",
-      title: "Coast Conservation Review",
-      authority: "Coast Conservation Department",
-      description: "Hydrological buffer verification",
-      estimatedDays: 21,
-    },
-    {
-      id: "uda",
-      title: "UDA Development Permit",
-      authority: "Urban Development Authority",
-      description: "Conditional approval with mitigation plan",
-      estimatedDays: 28,
-    },
-    {
-      id: "doc",
-      title: "Document Verification",
-      authority: "ConstructAI ML Compliance Engine",
-      description: "AI-assisted plan & inspection audit",
-      estimatedDays: 1,
-    },
-  ],
+const UDA_STEP: RoadmapStep = {
+  id: "uda",
+  phase: 0,
+  title: "UDA Clearance",
+  authority: "Urban Development Authority",
+  description: "Development permit, zoning compliance, and building plan scrutiny",
+  estimatedDays: 28,
 };
 
+const MC_STEP: RoadmapStep = {
+  id: "mc",
+  phase: 0,
+  title: "Local Authority / Municipal Council Approval",
+  authority: "Local Municipal Council",
+  description: "Construction permit issuance and occupancy certificate sign-off",
+  estimatedDays: 14,
+};
+
+const CCD_STEP: RoadmapStep = {
+  id: "ccd",
+  phase: 1,
+  title: "Coast Conservation Department (CCD) Clearance",
+  authority: "Coast Conservation Department",
+  description: "Coastal setback verification, erosion risk review, and buffer compliance",
+  estimatedDays: 21,
+};
+
+const NBRO_STEP: RoadmapStep = {
+  id: "nbro",
+  phase: 1,
+  title: "NBRO Geological Clearance",
+  authority: "National Building Research Organisation",
+  description: "Geotechnical assessment, landslide hazard screening, and slope stability sign-off",
+  estimatedDays: 35,
+};
+
+/** Assign sequential phase numbers after assembly. */
+function withPhases(steps: RoadmapStep[]): RoadmapStep[] {
+  return steps.map((step, index) => ({
+    ...step,
+    phase: index + 1,
+  }));
+}
+
+/**
+ * Dynamically builds the approval roadmap from detected zone type.
+ * Every path ends with UDA Clearance + Municipal Council Approval.
+ */
 export function buildRoadmap(zoneType: ZoneType): RoadmapStep[] {
-  return ROADMAP_BY_ZONE[zoneType].map((step) => ({ ...step }));
+  switch (zoneType) {
+    case "coastal":
+      return withPhases([CCD_STEP, UDA_STEP, MC_STEP]);
+    case "hilly":
+      return withPhases([NBRO_STEP, UDA_STEP, MC_STEP]);
+    case "municipal":
+    default:
+      return withPhases([UDA_STEP, MC_STEP]);
+  }
 }
 
 const AUTHORITY_DIRECTORY: Record<string, AuthorityContact> = {
@@ -213,7 +175,7 @@ const AUTHORITY_DIRECTORY: Record<string, AuthorityContact> = {
     role: "Assistant Director — Coastal Regulation",
     phone: "+94 11 258 8456",
     email: "ccd.clearance@gov.lk",
-    address: "Maligawatta Rd, Colombo 10",
+    address: "Coast Conservation Dept, Maligawatta Rd, Colombo 10",
     lat: 6.9366,
     lon: 79.8747,
   },
@@ -223,7 +185,7 @@ const AUTHORITY_DIRECTORY: Record<string, AuthorityContact> = {
     role: "Senior Geotechnical Officer",
     phone: "+94 11 267 8901",
     email: "geotech@nbro.lk",
-    address: "128/1, Nawala Rd, Rajagiriya",
+    address: "128/1 Nawala Rd, Rajagiriya, Colombo",
     lat: 6.9089,
     lon: 79.8934,
   },
@@ -237,16 +199,6 @@ const AUTHORITY_DIRECTORY: Record<string, AuthorityContact> = {
     lat: 6.9271,
     lon: 79.8612,
   },
-  "Colombo Municipal Council": {
-    institution: "Colombo Municipal Council",
-    officerName: "Ms. Nethmi Fernando",
-    role: "Building Inspector — Zone B",
-    phone: "+94 11 268 4290",
-    email: "building@cmb.lk",
-    address: "Town Hall, Colombo 07",
-    lat: 6.9147,
-    lon: 79.8615,
-  },
   "Local Municipal Council": {
     institution: "Local Municipal Council",
     officerName: "Mr. Ajith Bandara",
@@ -257,47 +209,120 @@ const AUTHORITY_DIRECTORY: Record<string, AuthorityContact> = {
     lat: 6.901,
     lon: 79.872,
   },
-  "Local Pradeshiya Sabha": {
-    institution: "Local Pradeshiya Sabha",
-    officerName: "Mrs. Kumari Ratnayake",
-    role: "Planning Officer",
-    phone: "+94 81 222 3344",
-    email: "planning@ps.gov.lk",
-    address: "Pradeshiya Sabha Office, Kandy District",
-    lat: 7.2906,
-    lon: 80.6337,
+  "Matara Municipal Council": {
+    institution: "Matara Municipal Council",
+    officerName: "Mrs. Sanduni Wickramasinghe",
+    role: "Assistant Municipal Commissioner — Building",
+    phone: "+94 41 222 3030",
+    email: "building@matara.mc.gov.lk",
+    address: "Nupe Rd, Matara 81000",
+    lat: 5.9549,
+    lon: 80.555,
   },
-  "Fire Service Department": {
-    institution: "Fire Service Department",
-    officerName: "Capt. Roshan Mendis",
-    role: "Fire Safety Inspector",
-    phone: "+94 11 242 2222",
-    email: "inspection@fireservice.gov.lk",
-    address: "Fire Service HQ, Colombo 10",
-    lat: 6.936,
-    lon: 79.865,
+  "Galle Municipal Council": {
+    institution: "Galle Municipal Council",
+    officerName: "Mr. Nimal Jayasinghe",
+    role: "Chief Building Inspector",
+    phone: "+94 91 223 4567",
+    email: "permits@galle.mc.gov.lk",
+    address: "Esplanade Rd, Galle 80000",
+    lat: 6.0329,
+    lon: 80.2168,
   },
-  "Central Environmental Authority": {
-    institution: "Central Environmental Authority",
-    officerName: "Dr. Priya Wijesuriya",
-    role: "EIA Review Officer",
-    phone: "+94 11 287 2419",
-    email: "eia@cea.lk",
-    address: "104, Denzil Kobbekaduwa Mawatha, Battaramulla",
-    lat: 6.898,
-    lon: 79.919,
-  },
-  "ConstructAI ML Compliance Engine": {
-    institution: "ConstructAI — ML Compliance Engine",
-    officerName: "AI Assessment Module",
-    role: "Automated Document Classifier",
-    phone: "N/A — API routed",
-    email: "compliance@constructai.lk",
-    address: "Cloud inference endpoint · /api/predict-compliance",
-    lat: 6.9271,
-    lon: 79.8612,
+  "Colombo Municipal Council": {
+    institution: "Colombo Municipal Council",
+    officerName: "Ms. Nethmi Fernando",
+    role: "Building Inspector — Zone B",
+    phone: "+94 11 268 4290",
+    email: "building@cmb.lk",
+    address: "Town Hall, Colombo 07",
+    lat: 6.9147,
+    lon: 79.8615,
   },
 };
+
+const AUTHORITY_PROFILE_EXTRAS: Record<
+  string,
+  Pick<AuthorityProfile, "workingHours" | "activeSubmissions" | "avgResponseDays">
+> = {
+  "Coast Conservation Department": {
+    activeSubmissions: 18,
+    avgResponseDays: 14,
+    workingHours: [
+      { day: "Mon – Thu", hours: "8:30 AM – 4:15 PM" },
+      { day: "Friday", hours: "8:30 AM – 4:00 PM" },
+      { day: "Public Holidays", hours: "Closed" },
+    ],
+  },
+  "National Building Research Organisation": {
+    activeSubmissions: 11,
+    avgResponseDays: 21,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:30 AM – 4:30 PM" },
+      { day: "Saturday", hours: "By appointment" },
+      { day: "Sunday", hours: "Closed" },
+    ],
+  },
+  "Urban Development Authority": {
+    activeSubmissions: 26,
+    avgResponseDays: 12,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:30 AM – 4:30 PM" },
+      { day: "Document Drop-off", hours: "Until 3:00 PM" },
+      { day: "Weekends", hours: "Closed" },
+    ],
+  },
+  "Matara Municipal Council": {
+    activeSubmissions: 14,
+    avgResponseDays: 12,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:00 AM – 4:00 PM" },
+      { day: "Public Counter", hours: "8:30 AM – 3:00 PM" },
+      { day: "Saturday", hours: "Closed" },
+    ],
+  },
+  "Galle Municipal Council": {
+    activeSubmissions: 16,
+    avgResponseDays: 11,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:00 AM – 4:00 PM" },
+      { day: "Public Counter", hours: "8:30 AM – 3:00 PM" },
+      { day: "Saturday", hours: "Closed" },
+    ],
+  },
+  "Colombo Municipal Council": {
+    activeSubmissions: 32,
+    avgResponseDays: 10,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:30 AM – 4:30 PM" },
+      { day: "Public Counter", hours: "9:00 AM – 3:00 PM" },
+      { day: "Weekends", hours: "Closed" },
+    ],
+  },
+  "Local Municipal Council": {
+    activeSubmissions: 9,
+    avgResponseDays: 15,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:00 AM – 4:00 PM" },
+      { day: "Saturday", hours: "Closed" },
+      { day: "Sunday", hours: "Closed" },
+    ],
+  },
+};
+
+const DEFAULT_PROFILE_EXTRAS = AUTHORITY_PROFILE_EXTRAS["Local Municipal Council"];
+
+/** Resolve municipal council name from site pin (mock jurisdiction routing). */
+function resolveMunicipalAuthorityKey(pin?: GeoPin | null): string {
+  if (!pin) return "Local Municipal Council";
+  if (isSouthernCoastalZone(pin.lat, pin.lon)) {
+    return pin.lon < 80.45 ? "Galle Municipal Council" : "Matara Municipal Council";
+  }
+  if (pin.lat >= 6.85 && pin.lon >= 79.8 && pin.lon <= 79.95) {
+    return "Colombo Municipal Council";
+  }
+  return "Local Municipal Council";
+}
 
 export function getAuthorityContact(authority: string): AuthorityContact {
   return (
@@ -312,6 +337,32 @@ export function getAuthorityContact(authority: string): AuthorityContact {
       lon: 79.8612,
     }
   );
+}
+
+/**
+ * Builds the full authority profile for Step 4, accounting for active roadmap
+ * phase and site pin jurisdiction (e.g. Matara MC for southern coastal pins).
+ */
+export function resolveAuthorityProfile(
+  authorityKey: string,
+  context?: { pin?: GeoPin | null; zone?: ZoneAnalysis | null }
+): AuthorityProfile {
+  const resolvedKey =
+    authorityKey === "Local Municipal Council"
+      ? resolveMunicipalAuthorityKey(context?.pin)
+      : authorityKey;
+
+  const contact = getAuthorityContact(resolvedKey);
+  const extras =
+    AUTHORITY_PROFILE_EXTRAS[resolvedKey] ??
+    AUTHORITY_PROFILE_EXTRAS[authorityKey] ??
+    DEFAULT_PROFILE_EXTRAS;
+
+  return {
+    ...contact,
+    displayName: contact.institution,
+    ...extras,
+  };
 }
 
 /** Heuristic entity extraction for research demo — surfaces NLP-style outputs. */
