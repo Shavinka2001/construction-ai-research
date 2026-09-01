@@ -20,3 +20,51 @@ body {
     transition: background-color 5000s ease-in-out 0s;
   }
 }
+
+/* Pulsing site pin for compliance workflow map (Leaflet divIcon) */
+@keyframes site-pin-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+.site-location-pin-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.site-location-pin {
+  position: relative;
+  width: 32px;
+  height: 32px;
+}
+
+.site-location-pin__pulse {
+  position: absolute;
+  inset: 4px;
+  border-radius: 9999px;
+  background: rgba(30, 58, 138, 0.45);
+  animation: site-pin-pulse 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.site-location-pin__dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  border-radius: 9999px;
+  background: #0f172a;
+  border: 3px solid #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.45);
+}

@@ -8,20 +8,28 @@ import {
   formatConfidence,
   type CompliancePrediction,
 } from "@/lib/compliance-types";
+import { useComplianceWorkflowOptional } from "@/contexts/ComplianceWorkflowContext";
 import { ComplianceStatusBadge } from "@/components/dashboard/authority/ComplianceStatusBadge";
 import { cn } from "@/lib/utils";
 
 type AiAssessmentPanelProps = {
-  inspectionText: string;
+  /** Legacy text trigger — fetches from ML when provided and workflow mode is off. */
+  inspectionText?: string;
   fallbackLabel?: string;
   className?: string;
+  /** When true, reads live inference state from ComplianceWorkflowProvider. */
+  useWorkflow?: boolean;
 };
 
 export function AiAssessmentPanel({
-  inspectionText,
+  inspectionText = "",
   fallbackLabel,
   className,
+  useWorkflow = false,
 }: AiAssessmentPanelProps) {
+  const workflow = useComplianceWorkflowOptional();
+  const workflowActive = useWorkflow && workflow != null;
+
   const [prediction, setPrediction] = useState<CompliancePrediction | null>(
     null
   );
@@ -29,9 +37,16 @@ export function AiAssessmentPanel({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (workflowActive) return;
+
     let cancelled = false;
     const text = inspectionText.trim();
-    if (!text) return;
+    if (!text) {
+      setPrediction(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -51,9 +66,30 @@ export function AiAssessmentPanel({
     return () => {
       cancelled = true;
     };
-  }, [inspectionText]);
+  }, [inspectionText, workflowActive]);
 
-  const displayLabel = prediction?.label ?? fallbackLabel;
+  const workflowLoading =
+    workflowActive && workflow.document.inferenceState === "inferring";
+  const workflowError =
+    workflowActive && workflow.document.inferenceState === "error"
+      ? workflow.document.error
+      : null;
+  const workflowPrediction =
+    workflowActive && workflow.document.inferenceState === "complete"
+      ? workflow.document.prediction
+      : null;
+
+  const resolvedLoading = workflowActive ? workflowLoading : loading;
+  const resolvedError = workflowActive ? workflowError : error;
+  const resolvedPrediction = workflowActive ? workflowPrediction : prediction;
+  const displayLabel = resolvedPrediction?.label ?? fallbackLabel;
+
+  const emptyWorkflow =
+    workflowActive &&
+    !workflowLoading &&
+    !workflowError &&
+    !workflowPrediction &&
+    workflow.document.inferenceState === "idle";
 
   return (
     <div
@@ -73,13 +109,28 @@ export function AiAssessmentPanel({
           ML Compliance Recommendation
         </h2>
         <p className="mt-1 text-xs text-slate-400">
-          Powered by the trained compliance classifier
+          Real-time inference via POST /api/predict-compliance
         </p>
       </div>
 
       <div className="p-5">
         <AnimatePresence mode="wait">
-          {loading && (
+          {emptyWorkflow && (
+            <motion.div
+              key="idle"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center gap-3 py-8 text-center"
+            >
+              <Brain className="h-8 w-8 text-slate-300" />
+              <p className="text-sm text-slate-500">
+                Upload a compliance document below to run the trained classifier.
+              </p>
+            </motion.div>
+          )}
+
+          {resolvedLoading && (
             <motion.div
               key="loading"
               initial={{ opacity: 0 }}
@@ -88,11 +139,13 @@ export function AiAssessmentPanel({
               className="flex flex-col items-center gap-3 py-8 text-center"
             >
               <Loader2 className="h-8 w-8 animate-spin text-gold" />
-              <p className="text-sm text-slate-500">Analyzing inspection notes…</p>
+              <p className="text-sm text-slate-500">
+                Running HashingVectorizer → RandomForest inference…
+              </p>
             </motion.div>
           )}
 
-          {!loading && error && (
+          {!resolvedLoading && resolvedError && (
             <motion.div
               key="error"
               initial={{ opacity: 0, y: 8 }}
@@ -105,7 +158,7 @@ export function AiAssessmentPanel({
                 <p className="text-sm font-semibold text-amber-900">
                   AI service unavailable
                 </p>
-                <p className="mt-1 text-xs text-amber-800/80">{error}</p>
+                <p className="mt-1 text-xs text-amber-800/80">{resolvedError}</p>
                 {fallbackLabel && (
                   <div className="mt-3">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -122,7 +175,7 @@ export function AiAssessmentPanel({
             </motion.div>
           )}
 
-          {!loading && !error && prediction && (
+          {!resolvedLoading && !resolvedError && resolvedPrediction && (
             <motion.div
               key="result"
               initial={{ opacity: 0, y: 8 }}
@@ -145,24 +198,29 @@ export function AiAssessmentPanel({
                       className="mt-2"
                     />
                   )}
-                  {prediction.confidence != null && (
+                  {resolvedPrediction.confidence != null && (
                     <p className="mt-2 text-sm text-slate-600">
                       Model confidence:{" "}
                       <span className="font-bold tabular-nums text-charcoal">
-                        {formatConfidence(prediction.confidence)}
+                        {formatConfidence(resolvedPrediction.confidence)}
                       </span>
+                    </p>
+                  )}
+                  {workflowActive && workflow.document.fileName && (
+                    <p className="mt-1 text-xs text-slate-400">
+                      Source: {workflow.document.fileName}
                     </p>
                   )}
                 </div>
               </div>
 
-              {prediction.probabilities &&
-                Object.keys(prediction.probabilities).length > 0 && (
+              {resolvedPrediction.probabilities &&
+                Object.keys(resolvedPrediction.probabilities).length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                       Class probabilities
                     </p>
-                    {Object.entries(prediction.probabilities)
+                    {Object.entries(resolvedPrediction.probabilities)
                       .sort(([, a], [, b]) => b - a)
                       .map(([label, score], index) => (
                         <motion.div

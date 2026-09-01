@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import type { CompliancePrediction } from "@/lib/compliance-types";
 
-const SERVICE_URL =
-  process.env.COMPLIANCE_SERVICE_URL ?? "http://localhost:8002";
+const API_BASE_URL =
+  process.env.COMPLIANCE_SERVICE_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://127.0.0.1:8001";
 
 export async function POST(request: Request) {
   let body: { inspection_text?: string };
@@ -25,12 +27,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const upstream = await fetch(`${SERVICE_URL}/api/predict-compliance`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ inspection_text: inspectionText }),
-      cache: "no-store",
-    });
+    const upstream = await fetch(
+      `${API_BASE_URL}/api/v1/predict-compliance`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inspection_text: inspectionText }),
+        cache: "no-store",
+      }
+    );
 
     const data = (await upstream.json()) as CompliancePrediction & {
       detail?: string | { msg?: string }[];
@@ -54,7 +59,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Compliance ML service is unavailable. Start it with: uvicorn main:app --reload --port 8002",
+          "Compliance ML service is unavailable. Ensure the backend is running at http://127.0.0.1:8001",
       },
       { status: 503 }
     );

@@ -4,6 +4,7 @@ from app.api.v1.endpoints import (
     admin,
     architect,
     auth,
+    compliance,
     health,
     land_validation,
     project,
@@ -17,3 +18,4 @@ api_router.include_router(admin.router)
 api_router.include_router(architect.router)
 api_router.include_router(project.router)
 api_router.include_router(land_validation.router)
+api_router.include_router(compliance.router)

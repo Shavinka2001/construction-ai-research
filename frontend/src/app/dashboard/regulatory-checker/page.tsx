@@ -1,10 +1,9 @@
-import { DashboardSectionPlaceholder } from "@/components/dashboard/DashboardSectionPlaceholder";
+import { ComplianceWorkflow } from "@/components/compliance-workflow/ComplianceWorkflow";
+
+export const metadata = {
+  title: "Smart Compliance Workflow | ConstructAI",
+};
 
 export default function RegulatoryCheckerPage() {
-  return (
-    <DashboardSectionPlaceholder
-      title="Regulatory Checker"
-      description="Permits, codes, and compliance verification."
-    />
-  );
+  return <ComplianceWorkflow />;
 }
