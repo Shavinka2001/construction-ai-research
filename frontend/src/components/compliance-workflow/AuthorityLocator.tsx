@@ -14,7 +14,7 @@ import {
   Timer,
   User,
 } from "lucide-react";
-import { useComplianceWorkflow } from "@/contexts/ComplianceWorkflowContext";
+import { useWorkflowAuthority } from "@/contexts/ComplianceWorkflowContext";
 import { resolveAuthorityProfile } from "@/lib/compliance-workflow-data";
 import AuthorityLocatorMap from "./AuthorityLocatorMap";
 import { cn } from "@/lib/utils";
@@ -42,9 +42,7 @@ function formatPhoneForTel(phone: string): string {
 }
 
 export function AuthorityLocator() {
-  const { roadmap, activeRoadmapIndex, pin, zone } = useComplianceWorkflow();
-
-  const activeStep = roadmap[activeRoadmapIndex];
+  const { pin, zone, activeRoadmapStep: activeStep } = useWorkflowAuthority();
 
   const profile = useMemo(() => {
     if (!activeStep) return null;

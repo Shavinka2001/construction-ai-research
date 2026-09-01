@@ -52,6 +52,7 @@ function ComplianceWorkflowInner() {
     nextStep,
     prevStep,
     canAdvanceFromStep,
+    canNavigateToStep,
     zone,
     pin,
     roadmap,
@@ -125,9 +126,7 @@ function ComplianceWorkflowInner() {
           <WorkflowStepHeader
             currentStep={currentStep}
             onStepClick={(step) => {
-              if (step <= currentStep || (step === 2 && zone != null)) {
-                setStep(step);
-              }
+              if (canNavigateToStep(step)) setStep(step);
             }}
           />
         </div>

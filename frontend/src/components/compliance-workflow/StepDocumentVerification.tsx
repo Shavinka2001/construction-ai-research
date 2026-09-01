@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
@@ -9,8 +9,9 @@ import {
   Loader2,
   Sparkles,
   Tag,
+  X,
 } from "lucide-react";
-import { useComplianceWorkflow } from "@/contexts/ComplianceWorkflowContext";
+import { useWorkflowDocument } from "@/contexts/ComplianceWorkflowContext";
 import { ComplianceStatusBadge } from "@/components/dashboard/authority/ComplianceStatusBadge";
 import { cn } from "@/lib/utils";
 
@@ -26,8 +27,10 @@ export function StepDocumentVerification({
   hideAssessment = false,
   compact = false,
 }: StepDocumentVerificationProps = {}) {
-  const { document, runDocumentInference } = useComplianceWorkflow();
+  const { document, runDocumentInference, clearDocument, activeRoadmapStep } =
+    useWorkflowDocument();
   const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(
     (file: File | null) => {
@@ -35,6 +38,13 @@ export function StepDocumentVerification({
     },
     [runDocumentInference]
   );
+
+  const handleRemoveFile = useCallback(() => {
+    clearDocument();
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [clearDocument]);
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
@@ -46,7 +56,9 @@ export function StepDocumentVerification({
   );
 
   const isInferring = document.inferenceState === "inferring";
-  const isComplete = document.inferenceState === "complete";
+  const hasActiveFile = document.file != null && document.fileName != null;
+  const hasPrediction =
+    document.inferenceState === "complete" && document.prediction != null;
 
   return (
     <div className="space-y-5">
@@ -61,6 +73,23 @@ export function StepDocumentVerification({
           Upload permit packages for real-time model inference via the trained
           compliance classifier.
         </p>
+        {activeRoadmapStep ? (
+          <motion.p
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-3 rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2 text-xs text-blue-800"
+          >
+            Verifying documents for{" "}
+            <strong className="font-semibold">
+              Phase {activeRoadmapStep.phase}: {activeRoadmapStep.authority}
+            </strong>
+            . Select a different phase in Step 2 to target another authority.
+          </motion.p>
+        ) : (
+          <p className="mt-3 text-xs text-amber-700">
+            Complete Step 1 and generate a roadmap in Step 2 before uploading.
+          </p>
+        )}
       </div>
 
       <label
@@ -77,15 +106,16 @@ export function StepDocumentVerification({
           isDragging
             ? "border-blue-500 bg-blue-50/50 shadow-[inset_0_0_0_1px_#3b82f6]"
             : "border-slate-200 hover:border-blue-400 hover:shadow-md",
-          isInferring && "pointer-events-none opacity-80"
+          (isInferring || !activeRoadmapStep) && "pointer-events-none opacity-60"
         )}
       >
         <input
+          ref={fileInputRef}
           id={compact ? "authority-document-upload" : "workflow-document-upload"}
           type="file"
           className="sr-only"
           accept={ACCEPTED}
-          disabled={isInferring}
+          disabled={isInferring || !activeRoadmapStep}
           onChange={(e) => {
             handleFile(e.target.files?.[0] ?? null);
             e.target.value = "";
@@ -108,11 +138,27 @@ export function StepDocumentVerification({
         </span>
       </label>
 
-      {document.fileName && (
-        <p className="text-xs text-slate-500">
-          Processing:{" "}
-          <span className="font-medium text-slate-700">{document.fileName}</span>
-        </p>
+      {hasActiveFile && !isInferring && document.fileName && (
+        <div className="flex items-center justify-between gap-2">
+          {hasPrediction ? (
+            <p className="text-xs text-slate-500">
+              Processing:{" "}
+              <span className="font-medium text-slate-700">{document.fileName}</span>
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500">
+              <span className="font-medium text-slate-700">{document.fileName}</span>
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={handleRemoveFile}
+            aria-label="Remove uploaded document"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       )}
 
       <AnimatePresence mode="wait">
@@ -149,7 +195,7 @@ export function StepDocumentVerification({
           </motion.p>
         )}
 
-        {isComplete && document.prediction && !hideAssessment && (
+        {hasActiveFile && hasPrediction && !hideAssessment && (
           <motion.div
             key="assessment"
             initial={{ opacity: 0, y: 12 }}
@@ -172,7 +218,7 @@ export function StepDocumentVerification({
             <div className="space-y-4 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <ComplianceStatusBadge
-                  label={document.prediction.label}
+                  label={document.prediction!.label}
                   size="md"
                 />
                 {document.confidenceScore != null && (
@@ -208,12 +254,12 @@ export function StepDocumentVerification({
                 </div>
               </div>
 
-              {document.prediction.probabilities && (
+              {document.prediction!.probabilities && (
                 <div className="space-y-2 border-t border-slate-100 pt-4">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     Class probability distribution
                   </p>
-                  {Object.entries(document.prediction.probabilities)
+                  {Object.entries(document.prediction!.probabilities)
                     .sort(([, a], [, b]) => b - a)
                     .map(([label, score]) => (
                       <div key={label} className="space-y-1">

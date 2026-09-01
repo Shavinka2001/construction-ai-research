@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Route } from "lucide-react";
-import { useComplianceWorkflow } from "@/contexts/ComplianceWorkflowContext";
+import { useWorkflowAuthority } from "@/contexts/ComplianceWorkflowContext";
 import { AuthorityLocator } from "@/components/compliance-workflow/AuthorityLocator";
 
 const stepEnterVariants = {
@@ -16,8 +16,7 @@ const stepEnterVariants = {
 };
 
 export function StepAuthorityMapping() {
-  const { roadmap, activeRoadmapIndex } = useComplianceWorkflow();
-  const activeStep = roadmap[activeRoadmapIndex];
+  const { activeRoadmapStep: activeStep } = useWorkflowAuthority();
 
   return (
     <motion.div

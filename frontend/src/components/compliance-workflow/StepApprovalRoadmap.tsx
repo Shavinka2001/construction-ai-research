@@ -1,8 +1,16 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, Circle, Clock, Route } from "lucide-react";
-import { useComplianceWorkflow } from "@/contexts/ComplianceWorkflowContext";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  Clock,
+  Loader2,
+  Route,
+} from "lucide-react";
+import { useWorkflowRoadmap } from "@/contexts/ComplianceWorkflowContext";
+import type { RoadmapStepStatus } from "@/lib/compliance-workflow/types";
 import { cn } from "@/lib/utils";
 
 const listVariants = {
@@ -23,6 +31,54 @@ const itemVariants = {
   },
 };
 
+const STATUS_STYLES: Record<
+  RoadmapStepStatus,
+  { label: string; className: string; icon?: "check" | "alert" | "spin" }
+> = {
+  pending: {
+    label: "Pending",
+    className: "bg-slate-100 text-slate-600 border-slate-200",
+  },
+  in_review: {
+    label: "ML Review",
+    className: "bg-blue-50 text-blue-700 border-blue-200",
+    icon: "spin",
+  },
+  verified: {
+    label: "Verified",
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    icon: "check",
+  },
+  flagged: {
+    label: "Flagged",
+    className: "bg-amber-50 text-amber-800 border-amber-200",
+    icon: "alert",
+  },
+};
+
+function StatusBadge({ status }: { status: RoadmapStepStatus }) {
+  const style = STATUS_STYLES[status];
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+        style.className
+      )}
+    >
+      {style.icon === "spin" && (
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+      )}
+      {style.icon === "check" && (
+        <CheckCircle2 className="h-3 w-3" aria-hidden />
+      )}
+      {style.icon === "alert" && (
+        <AlertTriangle className="h-3 w-3" aria-hidden />
+      )}
+      {style.label}
+    </span>
+  );
+}
+
 export function StepApprovalRoadmap() {
   const {
     zone,
@@ -30,7 +86,7 @@ export function StepApprovalRoadmap() {
     roadmapGeneration,
     activeRoadmapIndex,
     setActiveRoadmapIndex,
-  } = useComplianceWorkflow();
+  } = useWorkflowRoadmap();
 
   return (
     <div className="space-y-5">
@@ -43,7 +99,7 @@ export function StepApprovalRoadmap() {
         </h2>
         <p className="mt-1 text-sm text-slate-500">
           {zone
-            ? `Tailored for ${zone.label}. Phase 1 clearance varies by zone; all paths include UDA and municipal approval.`
+            ? `Tailored for ${zone.label}. Upload documents in Step 3 to update each phase status.`
             : "Complete Step 1 to generate your regulatory roadmap."}
         </p>
       </div>
@@ -82,7 +138,8 @@ export function StepApprovalRoadmap() {
           >
             {roadmap.map((step, index) => {
               const isActive = index === activeRoadmapIndex;
-              const isPast = index < activeRoadmapIndex;
+              const isPast =
+                index < activeRoadmapIndex || step.status === "verified";
 
               return (
                 <motion.li
@@ -122,7 +179,9 @@ export function StepApprovalRoadmap() {
                       "w-full rounded-xl border p-4 text-left transition-colors",
                       isActive
                         ? "border-blue-200 bg-blue-50/60 shadow-sm ring-1 ring-blue-100"
-                        : "border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm"
+                        : "border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm",
+                      step.status === "flagged" &&
+                        "border-amber-200/80 bg-amber-50/30"
                     )}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -137,13 +196,30 @@ export function StepApprovalRoadmap() {
                           {step.authority}
                         </p>
                       </div>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
-                        <Clock className="h-3 w-3" />~{step.estimatedDays}d
-                      </span>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <StatusBadge status={step.status} />
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
+                          <Clock className="h-3 w-3" />~{step.estimatedDays}d
+                        </span>
+                      </div>
                     </div>
                     <p className="mt-2 text-xs leading-relaxed text-slate-500">
                       {step.description}
                     </p>
+                    {step.statusNote && (
+                      <p
+                        className={cn(
+                          "mt-2 text-[11px] font-medium",
+                          step.status === "flagged"
+                            ? "text-amber-800"
+                            : step.status === "verified"
+                              ? "text-emerald-700"
+                              : "text-blue-700"
+                        )}
+                      >
+                        {step.statusNote}
+                      </p>
+                    )}
                   </motion.button>
                 </motion.li>
               );

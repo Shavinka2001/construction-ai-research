@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * Smart Compliance Workflow — global React Context provider.
+ *
+ * Data flow:
+ *   Step 1  confirmLocation(pin)  → zone + roadmap (state-machine)
+ *   Step 2  reads zone / roadmap  → displays dynamic phases
+ *   Step 3  runDocumentInference  → ML API → updates active phase status
+ *   Step 4  activeRoadmapIndex    → AuthorityLocator resolves contact + map
+ *
+ * Mount once at `AuthorityShell` so the authority dashboard and
+ * `/dashboard/regulatory-checker` share the same session.
+ */
+
 import {
   createContext,
   useCallback,
@@ -8,80 +21,63 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { CompliancePrediction } from "@/lib/compliance-types";
 import {
-  analyzeZoneFromPin,
-  buildRoadmap,
-  extractEntitiesFromText,
-  type GeoPin,
-  type RoadmapStep,
-  type ZoneAnalysis,
-  type ZoneType,
-} from "@/lib/compliance-workflow-data";
+  applyClearDocument,
+  applyInferenceComplete,
+  applyInferenceError,
+  applyInferenceStarted,
+  applyLocationConfirmation,
+  canAdvanceFromStep as canAdvanceFromStepFn,
+  canNavigateToStep as canNavigateToStepFn,
+  getActiveRoadmapStep as getActiveRoadmapStepFn,
+  INITIAL_WORKFLOW_STATE,
+} from "@/lib/compliance-workflow/state-machine";
+import type {
+  ComplianceWorkflowState,
+  DocumentVerificationState,
+  EnrichedRoadmapStep,
+  GeoPin,
+  InferenceState,
+  WorkflowStepIndex,
+  ZoneAnalysis,
+} from "@/lib/compliance-workflow/types";
+import { extractEntitiesFromText } from "@/lib/compliance-workflow-data";
 import { predictCompliance } from "@/lib/compliance-predict";
 import { extractDocumentText } from "@/lib/extract-document-text";
 
-export type WorkflowStepIndex = 1 | 2 | 3 | 4;
+// Re-export types for consumers
+export type {
+  ComplianceWorkflowState,
+  DocumentVerificationState,
+  EnrichedRoadmapStep,
+  GeoPin,
+  InferenceState,
+  RoadmapStepStatus,
+  WorkflowStepIndex,
+  ZoneAnalysis,
+} from "@/lib/compliance-workflow/types";
 
-export type InferenceState = "idle" | "inferring" | "complete" | "error";
-
-type DocumentState = {
-  file: File | null;
-  fileName: string | null;
-  inferenceState: InferenceState;
-  prediction: CompliancePrediction | null;
-  confidenceScore: number | null;
-  extractedEntities: string[];
-  error: string | null;
-};
-
-type WorkflowState = {
-  currentStep: WorkflowStepIndex;
-  pin: GeoPin | null;
-  zone: ZoneAnalysis | null;
-  roadmap: RoadmapStep[];
-  /** Bumps when zone/roadmap is regenerated — drives Step 2 entrance animations. */
-  roadmapGeneration: number;
-  activeRoadmapIndex: number;
-  document: DocumentState;
-};
-
-type ComplianceWorkflowContextValue = WorkflowState & {
+type ComplianceWorkflowContextValue = ComplianceWorkflowState & {
+  /** Currently selected roadmap phase (Step 2 click / Step 4 routing). */
+  activeRoadmapStep: EnrichedRoadmapStep | null;
   setStep: (step: WorkflowStepIndex) => void;
   nextStep: () => void;
   prevStep: () => void;
-  /** Sets pin only — no zone analysis (draft placement on map). */
   setPin: (pin: GeoPin) => void;
-  /** Confirms location, runs mock geofencing, builds roadmap. Optionally advances to Step 2. */
   confirmLocation: (pin: GeoPin, options?: { advance?: boolean }) => void;
   setActiveRoadmapIndex: (index: number) => void;
   runDocumentInference: (file: File) => Promise<void>;
+  clearDocument: () => void;
   canAdvanceFromStep: (step: WorkflowStepIndex) => boolean;
-};
-
-const initialDocument: DocumentState = {
-  file: null,
-  fileName: null,
-  inferenceState: "idle",
-  prediction: null,
-  confidenceScore: null,
-  extractedEntities: [],
-  error: null,
+  canNavigateToStep: (step: WorkflowStepIndex) => boolean;
+  resetWorkflow: () => void;
 };
 
 const ComplianceWorkflowCtx =
   createContext<ComplianceWorkflowContextValue | null>(null);
 
 export function ComplianceWorkflowProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<WorkflowState>({
-    currentStep: 1,
-    pin: null,
-    zone: null,
-    roadmap: [],
-    roadmapGeneration: 0,
-    activeRoadmapIndex: 0,
-    document: initialDocument,
-  });
+  const [state, setState] = useState<ComplianceWorkflowState>(INITIAL_WORKFLOW_STATE);
 
   const setStep = useCallback((step: WorkflowStepIndex) => {
     setState((prev) => ({ ...prev, currentStep: step }));
@@ -101,103 +97,66 @@ export function ComplianceWorkflowProvider({ children }: { children: ReactNode }
     }));
   }, []);
 
-  const applyZoneDetection = useCallback(
-    (pin: GeoPin, advanceToRoadmap: boolean) => {
-      const zone = analyzeZoneFromPin(pin);
-      const roadmap = buildRoadmap(zone.zoneType as ZoneType);
-      setState((prev) => ({
-        ...prev,
-        pin,
-        zone,
-        roadmap,
-        activeRoadmapIndex: 0,
-        roadmapGeneration: prev.roadmapGeneration + 1,
-        currentStep: advanceToRoadmap && prev.currentStep === 1 ? 2 : prev.currentStep,
-      }));
+  const confirmLocation = useCallback(
+    (pin: GeoPin, options?: { advance?: boolean }) => {
+      setState((prev) => applyLocationConfirmation(prev, pin, options));
     },
     []
   );
 
   const setPin = useCallback((pin: GeoPin) => {
-    applyZoneDetection(pin, false);
-  }, [applyZoneDetection]);
-
-  const confirmLocation = useCallback(
-    (pin: GeoPin, options?: { advance?: boolean }) => {
-      applyZoneDetection(pin, options?.advance !== false);
-    },
-    [applyZoneDetection]
-  );
+    setState((prev) => ({ ...prev, pin }));
+  }, []);
 
   const setActiveRoadmapIndex = useCallback((index: number) => {
     setState((prev) => ({ ...prev, activeRoadmapIndex: index }));
   }, []);
 
   const runDocumentInference = useCallback(async (file: File) => {
-    setState((prev) => ({
-      ...prev,
-      document: {
-        ...initialDocument,
-        file,
-        fileName: file.name,
-        inferenceState: "inferring",
-      },
-    }));
+    setState((prev) => applyInferenceStarted(prev, file));
 
     try {
       const text = await extractDocumentText(file);
       const entities = extractEntitiesFromText(text);
       const prediction = await predictCompliance(text);
-      const confidenceScore =
-        prediction.confidence != null
-          ? Math.round(prediction.confidence * 100)
-          : null;
 
-      setState((prev) => ({
-        ...prev,
-        document: {
-          file,
-          fileName: file.name,
-          inferenceState: "complete",
-          prediction,
-          confidenceScore,
-          extractedEntities: entities,
-          error: null,
-        },
-      }));
+      setState((prev) =>
+        applyInferenceComplete(prev, file, prediction, entities)
+      );
     } catch (err) {
-      setState((prev) => ({
-        ...prev,
-        document: {
-          ...prev.document,
-          inferenceState: "error",
-          error: err instanceof Error ? err.message : "Model inference failed",
-        },
-      }));
+      const message =
+        err instanceof Error ? err.message : "Model inference failed";
+      setState((prev) => applyInferenceError(prev, message));
     }
   }, []);
 
+  const clearDocument = useCallback(() => {
+    setState((prev) => applyClearDocument(prev));
+  }, []);
+
+  const resetWorkflow = useCallback(() => {
+    setState(INITIAL_WORKFLOW_STATE);
+  }, []);
+
   const canAdvanceFromStep = useCallback(
-    (step: WorkflowStepIndex) => {
-      switch (step) {
-        case 1:
-          return state.pin != null && state.zone != null;
-        case 2:
-          return state.roadmap.length > 0;
-        case 3:
-          return state.document.inferenceState === "complete";
-        case 4:
-          return true;
-        default:
-          return false;
-      }
-    },
+    (step: WorkflowStepIndex) => canAdvanceFromStepFn(state, step),
+    [state]
+  );
+
+  const canNavigateToStep = useCallback(
+    (step: WorkflowStepIndex) => canNavigateToStepFn(state, step),
+    [state]
+  );
+
+  const activeRoadmapStep = useMemo(
+    () => getActiveRoadmapStepFn(state),
     [state]
   );
 
   const value = useMemo<ComplianceWorkflowContextValue>(
     () => ({
       ...state,
+      activeRoadmapStep,
       setStep,
       nextStep,
       prevStep,
@@ -205,10 +164,14 @@ export function ComplianceWorkflowProvider({ children }: { children: ReactNode }
       confirmLocation,
       setActiveRoadmapIndex,
       runDocumentInference,
+      clearDocument,
       canAdvanceFromStep,
+      canNavigateToStep,
+      resetWorkflow,
     }),
     [
       state,
+      activeRoadmapStep,
       setStep,
       nextStep,
       prevStep,
@@ -216,7 +179,10 @@ export function ComplianceWorkflowProvider({ children }: { children: ReactNode }
       confirmLocation,
       setActiveRoadmapIndex,
       runDocumentInference,
+      clearDocument,
       canAdvanceFromStep,
+      canNavigateToStep,
+      resetWorkflow,
     ]
   );
 
@@ -241,4 +207,44 @@ export function useComplianceWorkflowOptional():
   | ComplianceWorkflowContextValue
   | null {
   return useContext(ComplianceWorkflowCtx);
+}
+
+/** Selector — Step 1 geospatial slice. */
+export function useWorkflowLocation() {
+  const { pin, zone, confirmLocation, setPin } = useComplianceWorkflow();
+  return { pin, zone, confirmLocation, setPin };
+}
+
+/** Selector — Step 2 roadmap slice. */
+export function useWorkflowRoadmap() {
+  const {
+    zone,
+    roadmap,
+    roadmapGeneration,
+    activeRoadmapIndex,
+    activeRoadmapStep,
+    setActiveRoadmapIndex,
+  } = useComplianceWorkflow();
+  return {
+    zone,
+    roadmap,
+    roadmapGeneration,
+    activeRoadmapIndex,
+    activeRoadmapStep,
+    setActiveRoadmapIndex,
+  };
+}
+
+/** Selector — Step 3 document / ML slice. */
+export function useWorkflowDocument() {
+  const { document, runDocumentInference, clearDocument, activeRoadmapStep } =
+    useComplianceWorkflow();
+  return { document, runDocumentInference, clearDocument, activeRoadmapStep };
+}
+
+/** Selector — Step 4 authority routing slice. */
+export function useWorkflowAuthority() {
+  const { pin, zone, roadmap, activeRoadmapIndex, activeRoadmapStep } =
+    useComplianceWorkflow();
+  return { pin, zone, roadmap, activeRoadmapIndex, activeRoadmapStep };
 }
