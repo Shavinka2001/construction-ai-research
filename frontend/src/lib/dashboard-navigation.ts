@@ -81,6 +81,11 @@ const QUANTITY_SURVEYOR_NAV: DashboardNavItem[] = [
 const AUTHORITY_NAV: DashboardNavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   {
+    label: "Pending Applications",
+    href: "/dashboard/applications",
+    icon: FileText,
+  },
+  {
     label: "Regulatory Checker",
     href: "/dashboard/regulatory-checker",
     icon: ShieldCheck,
