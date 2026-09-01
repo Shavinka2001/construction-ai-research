@@ -80,7 +80,9 @@ export function applyLocationConfirmation(
   options?: { advance?: boolean }
 ): ComplianceWorkflowState {
   const zone = analyzeZoneFromPin(pin);
-  const roadmap = enrichRoadmapSteps(buildRoadmap(zone.zoneType as ZoneType));
+  const roadmap = enrichRoadmapSteps(
+    buildRoadmap(zone.zoneType as ZoneType, pin)
+  );
 
   return {
     ...state,

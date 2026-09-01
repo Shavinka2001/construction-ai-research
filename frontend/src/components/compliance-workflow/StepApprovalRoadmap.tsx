@@ -9,7 +9,11 @@ import {
   Loader2,
   Route,
 } from "lucide-react";
-import { useWorkflowRoadmap } from "@/contexts/ComplianceWorkflowContext";
+import {
+  useWorkflowLocation,
+  useWorkflowRoadmap,
+} from "@/contexts/ComplianceWorkflowContext";
+import { getAuthorityAvgResponseDays } from "@/lib/compliance-workflow-data";
 import type { RoadmapStepStatus } from "@/lib/compliance-workflow/types";
 import { cn } from "@/lib/utils";
 
@@ -87,6 +91,7 @@ export function StepApprovalRoadmap() {
     activeRoadmapIndex,
     setActiveRoadmapIndex,
   } = useWorkflowRoadmap();
+  const { pin } = useWorkflowLocation();
 
   return (
     <div className="space-y-5">
@@ -140,6 +145,10 @@ export function StepApprovalRoadmap() {
               const isActive = index === activeRoadmapIndex;
               const isPast =
                 index < activeRoadmapIndex || step.status === "verified";
+              const responseDays = getAuthorityAvgResponseDays(
+                step.authority,
+                pin
+              );
 
               return (
                 <motion.li
@@ -199,7 +208,7 @@ export function StepApprovalRoadmap() {
                       <div className="flex flex-col items-end gap-1.5">
                         <StatusBadge status={step.status} />
                         <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
-                          <Clock className="h-3 w-3" />~{step.estimatedDays}d
+                          <Clock className="h-3 w-3" />~{responseDays}d
                         </span>
                       </div>
                     </div>

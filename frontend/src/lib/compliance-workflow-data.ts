@@ -21,6 +21,7 @@ export type RoadmapStep = {
   title: string;
   authority: string;
   description: string;
+  /** Synced from authority registry `avgResponseDays` at roadmap build time. */
   estimatedDays: number;
 };
 
@@ -40,12 +41,24 @@ export type WorkingHoursRow = {
   hours: string;
 };
 
-/** Enriched authority record for Step 4 Authority Locator UI. */
-export type AuthorityProfile = AuthorityContact & {
-  displayName: string;
-  workingHours: WorkingHoursRow[];
-  activeSubmissions: number;
+/**
+ * Canonical authority record — single source of truth for Step 2 roadmap
+ * phase badges and Step 4 Authority Locator cards.
+ */
+export type AuthorityMetadata = AuthorityContact & {
+  /** Roadmap phase headline (Step 2). */
+  roadmapTitle: string;
+  /** Roadmap phase description (Step 2). */
+  roadmapDescription: string;
+  /** Shared SLA metric shown as "~Nd" on roadmap and "Avg. Response Time" in Step 4. */
   avgResponseDays: number;
+  activeSubmissions: number;
+  workingHours: WorkingHoursRow[];
+};
+
+/** Enriched authority record for Step 4 Authority Locator UI. */
+export type AuthorityProfile = AuthorityMetadata & {
+  displayName: string;
 };
 
 /** Southern coastal belt — Matara / Galle corridor (mock geofence). */
@@ -108,40 +121,170 @@ export function analyzeZoneFromPin(pin: GeoPin): ZoneAnalysis {
   };
 }
 
-const UDA_STEP: RoadmapStep = {
-  id: "uda",
-  phase: 0,
-  title: "UDA Clearance",
-  authority: "Urban Development Authority",
-  description: "Development permit, zoning compliance, and building plan scrutiny",
-  estimatedDays: 28,
+const AUTHORITY_REGISTRY: Record<string, AuthorityMetadata> = {
+  "Coast Conservation Department": {
+    institution: "Coast Conservation Department",
+    roadmapTitle: "Coast Conservation Department (CCD) Clearance",
+    roadmapDescription:
+      "Coastal setback verification, erosion risk review, and buffer compliance",
+    avgResponseDays: 21,
+    officerName: "Mrs. Dilani Perera",
+    role: "Assistant Director — Coastal Regulation",
+    phone: "+94 11 258 8456",
+    email: "ccd.clearance@gov.lk",
+    address: "Coast Conservation Dept, Maligawatta Rd, Colombo 10",
+    lat: 6.9366,
+    lon: 79.8747,
+    activeSubmissions: 18,
+    workingHours: [
+      { day: "Mon – Thu", hours: "8:30 AM – 4:15 PM" },
+      { day: "Friday", hours: "8:30 AM – 4:00 PM" },
+      { day: "Public Holidays", hours: "Closed" },
+    ],
+  },
+  "National Building Research Organisation": {
+    institution: "National Building Research Organisation",
+    roadmapTitle: "NBRO Geological Clearance",
+    roadmapDescription:
+      "Geotechnical assessment, landslide hazard screening, and slope stability sign-off",
+    avgResponseDays: 35,
+    officerName: "Dr. Ruwan Silva",
+    role: "Senior Geotechnical Officer",
+    phone: "+94 11 267 8901",
+    email: "geotech@nbro.lk",
+    address: "128/1 Nawala Rd, Rajagiriya, Colombo",
+    lat: 6.9089,
+    lon: 79.8934,
+    activeSubmissions: 11,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:30 AM – 4:30 PM" },
+      { day: "Saturday", hours: "By appointment" },
+      { day: "Sunday", hours: "Closed" },
+    ],
+  },
+  "Urban Development Authority": {
+    institution: "Urban Development Authority",
+    roadmapTitle: "UDA Clearance",
+    roadmapDescription:
+      "Development permit, zoning compliance, and building plan scrutiny",
+    avgResponseDays: 28,
+    officerName: "Mr. Kasun Jayawardena",
+    role: "Development Control Officer",
+    phone: "+94 11 287 3412",
+    email: "dco@uda.lk",
+    address: "Sir Chittampalam A Gardiner Mawatha, Colombo 02",
+    lat: 6.9271,
+    lon: 79.8612,
+    activeSubmissions: 26,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:30 AM – 4:30 PM" },
+      { day: "Document Drop-off", hours: "Until 3:00 PM" },
+      { day: "Weekends", hours: "Closed" },
+    ],
+  },
+  "Local Municipal Council": {
+    institution: "Local Municipal Council",
+    roadmapTitle: "Local Authority / Municipal Council Approval",
+    roadmapDescription:
+      "Construction permit issuance and occupancy certificate sign-off",
+    avgResponseDays: 15,
+    officerName: "Mr. Ajith Bandara",
+    role: "Chief Building Officer",
+    phone: "+94 11 278 1120",
+    email: "cbo@mc.gov.lk",
+    address: "Municipal Secretariat, District HQ",
+    lat: 6.901,
+    lon: 79.872,
+    activeSubmissions: 9,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:00 AM – 4:00 PM" },
+      { day: "Saturday", hours: "Closed" },
+      { day: "Sunday", hours: "Closed" },
+    ],
+  },
+  "Matara Municipal Council": {
+    institution: "Matara Municipal Council",
+    roadmapTitle: "Matara Municipal Council Approval",
+    roadmapDescription:
+      "Construction permit issuance and occupancy certificate sign-off",
+    avgResponseDays: 12,
+    officerName: "Mrs. Sanduni Wickramasinghe",
+    role: "Assistant Municipal Commissioner — Building",
+    phone: "+94 41 222 3030",
+    email: "building@matara.mc.gov.lk",
+    address: "Nupe Rd, Matara 81000",
+    lat: 5.9549,
+    lon: 80.555,
+    activeSubmissions: 14,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:00 AM – 4:00 PM" },
+      { day: "Public Counter", hours: "8:30 AM – 3:00 PM" },
+      { day: "Saturday", hours: "Closed" },
+    ],
+  },
+  "Galle Municipal Council": {
+    institution: "Galle Municipal Council",
+    roadmapTitle: "Galle Municipal Council Approval",
+    roadmapDescription:
+      "Construction permit issuance and occupancy certificate sign-off",
+    avgResponseDays: 11,
+    officerName: "Mr. Nimal Jayasinghe",
+    role: "Chief Building Inspector",
+    phone: "+94 91 223 4567",
+    email: "permits@galle.mc.gov.lk",
+    address: "Esplanade Rd, Galle 80000",
+    lat: 6.0329,
+    lon: 80.2168,
+    activeSubmissions: 16,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:00 AM – 4:00 PM" },
+      { day: "Public Counter", hours: "8:30 AM – 3:00 PM" },
+      { day: "Saturday", hours: "Closed" },
+    ],
+  },
+  "Colombo Municipal Council": {
+    institution: "Colombo Municipal Council",
+    roadmapTitle: "Colombo Municipal Council Approval",
+    roadmapDescription:
+      "Construction permit issuance and occupancy certificate sign-off",
+    avgResponseDays: 10,
+    officerName: "Ms. Nethmi Fernando",
+    role: "Building Inspector — Zone B",
+    phone: "+94 11 268 4290",
+    email: "building@cmb.lk",
+    address: "Town Hall, Colombo 07",
+    lat: 6.9147,
+    lon: 79.8615,
+    activeSubmissions: 32,
+    workingHours: [
+      { day: "Mon – Fri", hours: "8:30 AM – 4:30 PM" },
+      { day: "Public Counter", hours: "9:00 AM – 3:00 PM" },
+      { day: "Weekends", hours: "Closed" },
+    ],
+  },
 };
 
-const MC_STEP: RoadmapStep = {
-  id: "mc",
-  phase: 0,
-  title: "Local Authority / Municipal Council Approval",
-  authority: "Local Municipal Council",
-  description: "Construction permit issuance and occupancy certificate sign-off",
-  estimatedDays: 14,
-};
+const DEFAULT_AUTHORITY_KEY = "Local Municipal Council";
 
-const CCD_STEP: RoadmapStep = {
-  id: "ccd",
-  phase: 1,
-  title: "Coast Conservation Department (CCD) Clearance",
-  authority: "Coast Conservation Department",
-  description: "Coastal setback verification, erosion risk review, and buffer compliance",
-  estimatedDays: 21,
-};
-
-const NBRO_STEP: RoadmapStep = {
-  id: "nbro",
-  phase: 1,
-  title: "NBRO Geological Clearance",
-  authority: "National Building Research Organisation",
-  description: "Geotechnical assessment, landslide hazard screening, and slope stability sign-off",
-  estimatedDays: 35,
+/** Roadmap step templates — authority keys reference AUTHORITY_REGISTRY. */
+const ROADMAP_TEMPLATES: Record<
+  ZoneType,
+  { id: string; authorityKey: string }[]
+> = {
+  coastal: [
+    { id: "ccd", authorityKey: "Coast Conservation Department" },
+    { id: "uda", authorityKey: "Urban Development Authority" },
+    { id: "mc", authorityKey: "Local Municipal Council" },
+  ],
+  hilly: [
+    { id: "nbro", authorityKey: "National Building Research Organisation" },
+    { id: "uda", authorityKey: "Urban Development Authority" },
+    { id: "mc", authorityKey: "Local Municipal Council" },
+  ],
+  municipal: [
+    { id: "uda", authorityKey: "Urban Development Authority" },
+    { id: "mc", authorityKey: "Local Municipal Council" },
+  ],
 };
 
 /** Assign sequential phase numbers after assembly. */
@@ -152,191 +295,90 @@ function withPhases(steps: RoadmapStep[]): RoadmapStep[] {
   }));
 }
 
+function buildStepFromRegistry(
+  template: { id: string; authorityKey: string },
+  pin?: GeoPin | null
+): RoadmapStep {
+  const resolvedKey = resolveAuthorityKey(template.authorityKey, pin);
+  const meta = getAuthorityMetadata(resolvedKey);
+
+  return {
+    id: template.id,
+    phase: 0,
+    title: meta.roadmapTitle,
+    authority: template.authorityKey,
+    description: meta.roadmapDescription,
+    estimatedDays: meta.avgResponseDays,
+  };
+}
+
 /**
  * Dynamically builds the approval roadmap from detected zone type.
  * Every path ends with UDA Clearance + Municipal Council Approval.
+ * `estimatedDays` is sourced from AUTHORITY_REGISTRY (pin-aware for MC).
  */
-export function buildRoadmap(zoneType: ZoneType): RoadmapStep[] {
-  switch (zoneType) {
-    case "coastal":
-      return withPhases([CCD_STEP, UDA_STEP, MC_STEP]);
-    case "hilly":
-      return withPhases([NBRO_STEP, UDA_STEP, MC_STEP]);
-    case "municipal":
-    default:
-      return withPhases([UDA_STEP, MC_STEP]);
-  }
+export function buildRoadmap(
+  zoneType: ZoneType,
+  pin?: GeoPin | null
+): RoadmapStep[] {
+  const templates = ROADMAP_TEMPLATES[zoneType] ?? ROADMAP_TEMPLATES.municipal;
+  return withPhases(templates.map((template) => buildStepFromRegistry(template, pin)));
 }
 
-const AUTHORITY_DIRECTORY: Record<string, AuthorityContact> = {
-  "Coast Conservation Department": {
-    institution: "Coast Conservation Department",
-    officerName: "Mrs. Dilani Perera",
-    role: "Assistant Director — Coastal Regulation",
-    phone: "+94 11 258 8456",
-    email: "ccd.clearance@gov.lk",
-    address: "Coast Conservation Dept, Maligawatta Rd, Colombo 10",
-    lat: 6.9366,
-    lon: 79.8747,
-  },
-  "National Building Research Organisation": {
-    institution: "National Building Research Organisation",
-    officerName: "Dr. Ruwan Silva",
-    role: "Senior Geotechnical Officer",
-    phone: "+94 11 267 8901",
-    email: "geotech@nbro.lk",
-    address: "128/1 Nawala Rd, Rajagiriya, Colombo",
-    lat: 6.9089,
-    lon: 79.8934,
-  },
-  "Urban Development Authority": {
-    institution: "Urban Development Authority",
-    officerName: "Mr. Kasun Jayawardena",
-    role: "Development Control Officer",
-    phone: "+94 11 287 3412",
-    email: "dco@uda.lk",
-    address: "Sir Chittampalam A Gardiner Mawatha, Colombo 02",
-    lat: 6.9271,
-    lon: 79.8612,
-  },
-  "Local Municipal Council": {
-    institution: "Local Municipal Council",
-    officerName: "Mr. Ajith Bandara",
-    role: "Chief Building Officer",
-    phone: "+94 11 278 1120",
-    email: "cbo@mc.gov.lk",
-    address: "Municipal Secretariat, District HQ",
-    lat: 6.901,
-    lon: 79.872,
-  },
-  "Matara Municipal Council": {
-    institution: "Matara Municipal Council",
-    officerName: "Mrs. Sanduni Wickramasinghe",
-    role: "Assistant Municipal Commissioner — Building",
-    phone: "+94 41 222 3030",
-    email: "building@matara.mc.gov.lk",
-    address: "Nupe Rd, Matara 81000",
-    lat: 5.9549,
-    lon: 80.555,
-  },
-  "Galle Municipal Council": {
-    institution: "Galle Municipal Council",
-    officerName: "Mr. Nimal Jayasinghe",
-    role: "Chief Building Inspector",
-    phone: "+94 91 223 4567",
-    email: "permits@galle.mc.gov.lk",
-    address: "Esplanade Rd, Galle 80000",
-    lat: 6.0329,
-    lon: 80.2168,
-  },
-  "Colombo Municipal Council": {
-    institution: "Colombo Municipal Council",
-    officerName: "Ms. Nethmi Fernando",
-    role: "Building Inspector — Zone B",
-    phone: "+94 11 268 4290",
-    email: "building@cmb.lk",
-    address: "Town Hall, Colombo 07",
-    lat: 6.9147,
-    lon: 79.8615,
-  },
-};
-
-const AUTHORITY_PROFILE_EXTRAS: Record<
-  string,
-  Pick<AuthorityProfile, "workingHours" | "activeSubmissions" | "avgResponseDays">
-> = {
-  "Coast Conservation Department": {
-    activeSubmissions: 18,
-    avgResponseDays: 14,
-    workingHours: [
-      { day: "Mon – Thu", hours: "8:30 AM – 4:15 PM" },
-      { day: "Friday", hours: "8:30 AM – 4:00 PM" },
-      { day: "Public Holidays", hours: "Closed" },
-    ],
-  },
-  "National Building Research Organisation": {
-    activeSubmissions: 11,
-    avgResponseDays: 21,
-    workingHours: [
-      { day: "Mon – Fri", hours: "8:30 AM – 4:30 PM" },
-      { day: "Saturday", hours: "By appointment" },
-      { day: "Sunday", hours: "Closed" },
-    ],
-  },
-  "Urban Development Authority": {
-    activeSubmissions: 26,
-    avgResponseDays: 12,
-    workingHours: [
-      { day: "Mon – Fri", hours: "8:30 AM – 4:30 PM" },
-      { day: "Document Drop-off", hours: "Until 3:00 PM" },
-      { day: "Weekends", hours: "Closed" },
-    ],
-  },
-  "Matara Municipal Council": {
-    activeSubmissions: 14,
-    avgResponseDays: 12,
-    workingHours: [
-      { day: "Mon – Fri", hours: "8:00 AM – 4:00 PM" },
-      { day: "Public Counter", hours: "8:30 AM – 3:00 PM" },
-      { day: "Saturday", hours: "Closed" },
-    ],
-  },
-  "Galle Municipal Council": {
-    activeSubmissions: 16,
-    avgResponseDays: 11,
-    workingHours: [
-      { day: "Mon – Fri", hours: "8:00 AM – 4:00 PM" },
-      { day: "Public Counter", hours: "8:30 AM – 3:00 PM" },
-      { day: "Saturday", hours: "Closed" },
-    ],
-  },
-  "Colombo Municipal Council": {
-    activeSubmissions: 32,
-    avgResponseDays: 10,
-    workingHours: [
-      { day: "Mon – Fri", hours: "8:30 AM – 4:30 PM" },
-      { day: "Public Counter", hours: "9:00 AM – 3:00 PM" },
-      { day: "Weekends", hours: "Closed" },
-    ],
-  },
-  "Local Municipal Council": {
-    activeSubmissions: 9,
-    avgResponseDays: 15,
-    workingHours: [
-      { day: "Mon – Fri", hours: "8:00 AM – 4:00 PM" },
-      { day: "Saturday", hours: "Closed" },
-      { day: "Sunday", hours: "Closed" },
-    ],
-  },
-};
-
-const DEFAULT_PROFILE_EXTRAS = AUTHORITY_PROFILE_EXTRAS["Local Municipal Council"];
-
 /** Resolve municipal council name from site pin (mock jurisdiction routing). */
+export function resolveAuthorityKey(
+  authorityKey: string,
+  pin?: GeoPin | null
+): string {
+  if (authorityKey === "Local Municipal Council") {
+    return resolveMunicipalAuthorityKey(pin);
+  }
+  return authorityKey;
+}
+
 function resolveMunicipalAuthorityKey(pin?: GeoPin | null): string {
-  if (!pin) return "Local Municipal Council";
+  if (!pin) return DEFAULT_AUTHORITY_KEY;
   if (isSouthernCoastalZone(pin.lat, pin.lon)) {
     return pin.lon < 80.45 ? "Galle Municipal Council" : "Matara Municipal Council";
   }
   if (pin.lat >= 6.85 && pin.lon >= 79.8 && pin.lon <= 79.95) {
     return "Colombo Municipal Council";
   }
-  return "Local Municipal Council";
+  return DEFAULT_AUTHORITY_KEY;
+}
+
+/** Lookup canonical authority metadata from the shared registry. */
+export function getAuthorityMetadata(authorityKey: string): AuthorityMetadata {
+  return (
+    AUTHORITY_REGISTRY[authorityKey] ??
+    AUTHORITY_REGISTRY[DEFAULT_AUTHORITY_KEY]
+  );
+}
+
+/**
+ * Returns the unified SLA days for an authority — used by Step 2 badges
+ * and Step 4 "Avg. Response Time". Pin-aware for municipal council routing.
+ */
+export function getAuthorityAvgResponseDays(
+  authorityKey: string,
+  pin?: GeoPin | null
+): number {
+  const resolvedKey = resolveAuthorityKey(authorityKey, pin);
+  return getAuthorityMetadata(resolvedKey).avgResponseDays;
 }
 
 export function getAuthorityContact(authority: string): AuthorityContact {
-  return (
-    AUTHORITY_DIRECTORY[authority] ?? {
-      institution: authority,
-      officerName: "Duty Officer",
-      role: "Regulatory Liaison",
-      phone: "+94 11 000 0000",
-      email: "info@gov.lk",
-      address: "Government Secretariat",
-      lat: 6.9271,
-      lon: 79.8612,
-    }
-  );
+  const meta = getAuthorityMetadata(authority);
+  return {
+    institution: meta.institution,
+    officerName: meta.officerName,
+    role: meta.role,
+    phone: meta.phone,
+    email: meta.email,
+    address: meta.address,
+    lat: meta.lat,
+    lon: meta.lon,
+  };
 }
 
 /**
@@ -347,21 +389,12 @@ export function resolveAuthorityProfile(
   authorityKey: string,
   context?: { pin?: GeoPin | null; zone?: ZoneAnalysis | null }
 ): AuthorityProfile {
-  const resolvedKey =
-    authorityKey === "Local Municipal Council"
-      ? resolveMunicipalAuthorityKey(context?.pin)
-      : authorityKey;
-
-  const contact = getAuthorityContact(resolvedKey);
-  const extras =
-    AUTHORITY_PROFILE_EXTRAS[resolvedKey] ??
-    AUTHORITY_PROFILE_EXTRAS[authorityKey] ??
-    DEFAULT_PROFILE_EXTRAS;
+  const resolvedKey = resolveAuthorityKey(authorityKey, context?.pin);
+  const meta = getAuthorityMetadata(resolvedKey);
 
   return {
-    ...contact,
-    displayName: contact.institution,
-    ...extras,
+    ...meta,
+    displayName: meta.institution,
   };
 }
 

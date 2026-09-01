@@ -31,3 +31,11 @@ export {
   predictionToStepStatus,
   statusNoteForPrediction,
 } from "./state-machine";
+
+export {
+  buildRoadmap,
+  getAuthorityAvgResponseDays,
+  getAuthorityMetadata,
+  resolveAuthorityKey,
+  resolveAuthorityProfile,
+} from "../compliance-workflow-data";
