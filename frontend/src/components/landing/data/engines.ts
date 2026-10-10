@@ -27,7 +27,7 @@ export const ENGINES: readonly Engine[] = [
     title: "Site & Geospatial Intelligence",
     academicName: "Automated Site Analysis & Geospatial Intelligence Module",
     tagline:
-      "Drops a pin on raw land and returns an explainable buildability verdict before a single survey peg goes in.",
+      "Scores a parcel before anyone walks it. Every point of the verdict is traceable to the factor that cost it.",
     icon: Mountain,
     maturity: "live",
     accent: "emerald",
@@ -87,7 +87,7 @@ export const ENGINES: readonly Engine[] = [
     academicName:
       "Automated Architectural Validation & Metric Extraction Module",
     tagline:
-      "Reads a scanned 2D plan, finds the structural clashes, prescribes the fix, then rebuilds it as a walkable 3D model.",
+      "Reads a scanned plan, finds what collides, works out the fix, and rebuilds the result as a model you can walk through.",
     icon: Building2,
     maturity: "live",
     accent: "gold",
@@ -158,7 +158,7 @@ export const ENGINES: readonly Engine[] = [
     academicName:
       "Automated Regulatory Approval & Compliance Advisory Module",
     tagline:
-      "Turns an address into the exact approval pathway, the right authority desk, and a machine-classified document verdict.",
+      "Turns a map pin into the approval pathway it actually requires, down to the officer who signs it off.",
     icon: ScrollText,
     maturity: "live",
     accent: "emerald",
@@ -216,7 +216,7 @@ export const ENGINES: readonly Engine[] = [
     title: "Cost, Scheduling & Lifecycle Consultant",
     academicName: "Intelligent Cost, Scheduling & Lifecycle Consultant",
     tagline:
-      "Carries validated quantities through to CAPEX, a critical-path programme, and a 30-year maintenance outlook.",
+      "Takes the quantities the earlier stages validated and prices them, programmes them, and projects what upkeep will cost.",
     icon: Wallet,
     maturity: "prototype",
     accent: "gold",

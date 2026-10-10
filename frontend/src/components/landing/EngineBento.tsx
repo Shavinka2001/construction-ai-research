@@ -1,30 +1,34 @@
 import {
   Container,
   Section,
-  SectionHeading,
+  SectionMasthead,
 } from "@/components/landing/primitives/Section";
 import { EngineGrid } from "@/components/landing/EngineGrid";
 
-/** The four research components, as an asymmetric bento grid. */
+/** The four research components, as full-width editorial rows. */
 export function EngineBento() {
   return (
-    <Section id="engines">
-      <div
-        aria-hidden
-        className="lp-grid-blueprint-light lp-grid-mask absolute inset-0"
-      />
-
-      <Container className="relative">
-        <SectionHeading
+    <Section id="engines" className="py-20 sm:py-24 lg:py-28">
+      <Container>
+        <SectionMasthead
           id="engines"
-          eyebrow="The four engines"
-          title={
+          index="01"
+          label="Components"
+          title="Four engines, one pipeline."
+          lede={
             <>
-              Four research components,{" "}
-              <span className="lp-text-gold-gradient">one pipeline</span>.
+              <p>
+                Each component stands as its own research contribution and also
+                forms one stage of the same pipeline: score the site, validate
+                the plan, clear the permit, price the build. Output from one
+                stage is the input to the next.
+              </p>
+              <p className="mt-3">
+                Figures below are read from the implementation. Where an engine
+                is still a prototype it says so.
+              </p>
             </>
           }
-          description="Each component is an independent research contribution that also forms one stage of a single pre-construction pipeline: site, plan, permit, price. Figures below are read from the implementation, and each card states whether the engine behind it is live or still a prototype."
         />
 
         <EngineGrid />

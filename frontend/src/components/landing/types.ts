@@ -100,6 +100,15 @@ export type TeamMember = {
   name: string;
   /** Registration / index number, shown small under the name. */
   studentId?: string;
+  /** Contact address. The About us page is required to carry one. */
+  email?: string;
+  /**
+   * Path under /public to an identification photograph. Optional — the card
+   * falls back to a monogram when absent, so no placeholder portrait ships.
+   */
+  photo?: string;
+  /** Awards, publications or other relevant information. */
+  achievements?: readonly string[];
   /** Research component owned, e.g. "Component 2". */
   componentLabel: string;
   componentTitle: string;
@@ -121,4 +130,88 @@ export type Institution = {
   department: string;
   degree: string;
   academicYear: string;
+};
+
+/* ===========================================================================
+ * Types for the tab structure mandated by the project web guidelines
+ * (Home, Domain, Milestones, Documents, Slides, About us, Contact us).
+ * ======================================================================== */
+
+/** A top-level tab in the site navigation. */
+export type SiteTab = {
+  href: string;
+  label: string;
+  /** Shown under the heading on each page. */
+  blurb: string;
+};
+
+/** One assessment in the project timeline. */
+export type Milestone = {
+  id: string;
+  name: string;
+  /** ISO date (YYYY-MM-DD), or null while unscheduled. */
+  date: string | null;
+  /** Weight toward the module grade, as a percentage. */
+  marks: number | null;
+  /** What the assessment covers. */
+  description: string;
+  /** What is handed in or presented. */
+  deliverables: readonly string[];
+  status: "completed" | "upcoming" | "scheduled";
+};
+
+export type DocumentKind =
+  | "charter"
+  | "proposal"
+  | "checklist"
+  | "final"
+  | "other";
+
+/** A project document, published or still pending. */
+export type ProjectDocument = {
+  id: string;
+  title: string;
+  kind: DocumentKind;
+  /** Who authored it — the group, or one member for individual chapters. */
+  author: string;
+  /** ISO date submitted, or null when pending. */
+  submittedOn: string | null;
+  /** Link to the file. `null` renders as "pending" rather than a dead link. */
+  href: string | null;
+};
+
+/** A past or planned presentation. */
+export type Presentation = {
+  id: string;
+  title: string;
+  /** ISO date, or null when not yet scheduled. */
+  date: string | null;
+  /** Link to the slide deck, or null while pending. */
+  href: string | null;
+  /** One line on what was presented. */
+  summary: string;
+};
+
+/** A labelled block of research write-up on the Domain page. */
+export type DomainSection = {
+  id: string;
+  title: string;
+  /** Paragraphs of prose. */
+  body: readonly string[];
+  /** Optional enumerated points rendered beneath the prose. */
+  points?: readonly string[];
+};
+
+/** A phase of the research methodology. */
+export type MethodologyPhase = {
+  id: string;
+  name: string;
+  detail: string;
+};
+
+export type ContactChannel = {
+  label: string;
+  value: string;
+  /** `mailto:` or `tel:` target. */
+  href: string;
 };

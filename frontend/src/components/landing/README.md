@@ -1,6 +1,6 @@
-# Research landing page
+# Public project website
 
-The public showcase served at `/`. It is self-contained: nothing outside this
+The seven tabs required by the project web guidelines, served from `src/app/(site)/`. It is self-contained: nothing outside this
 folder imports from it, and it imports only `@/lib/utils` (`cn`) from the rest
 of the app. Removing this folder and restoring the previous `src/app/page.tsx`
 would leave the platform untouched.
@@ -9,12 +9,17 @@ would leave the platform untouched.
 
 | I want to change…                        | Edit                                     |
 | ---------------------------------------- | ---------------------------------------- |
-| Team names, index numbers, supervisor, university | `data/team.ts`                  |
-| Component titles, capabilities, metrics, tech | `data/engines.ts`                   |
+| Tab labels and order                     | `data/site.ts`                           |
+| Team names, index numbers, e-mails, photos | `data/team.ts`                         |
+| Assessment dates and marks               | `data/milestones.ts`                     |
+| Document and slide links                 | `data/documents.ts`                      |
+| Literature survey, problem, objectives, methodology | `data/domain.ts`              |
+| Contact numbers and addresses            | `data/contact.ts`                        |
+| Component titles, capabilities, metrics  | `data/engines.ts`                        |
 | Hero headline figures                    | `data/stats.ts`                          |
 | Research contribution claims             | `data/novelty.ts`                        |
 | Stack diagram nodes and data flow        | `data/architecture.ts`                   |
-| Colours, shadows, keyframes              | `tailwind.config.js` (repo root of `frontend/`) |
+| Colours, shadows, keyframes              | `tailwind.config.js`                     |
 | Landing-only CSS utilities               | end of `src/app/globals.css`             |
 
 **`data/team.ts` ships placeholders.** Replace `Researcher One`…`Four`, the
@@ -47,10 +52,10 @@ maps to.
 `src/app/page.tsx` is a server component that composes the sections. Client
 boundaries are kept as small as possible:
 
-- `LandingNav`, `Hero`, `StatsStrip`, `EngineGrid`, `EngineCard`,
+- `SiteNav`, `Hero`, `MilestoneExplorer`, `EnquiryForm`, `StatsStrip`, `EngineGrid`, `EngineRow`,
   `ArchitectureFlow`, `Reveal`, `LandingScrollScope` — client.
 - `EngineBento`, `ResearchNovelty`, `TeamSection`, `LandingFooter`,
-  `primitives/Section`, `primitives/Badge` — server.
+  `primitives/Section`, `primitives/PageHeader` — server.
 
 `EngineGrid` exists purely as a client boundary: engine records carry
 `lucide-react` icon components, which are functions and cannot be passed as
@@ -100,3 +105,36 @@ reflows when the canvas arrives.
 `ink-light`) and `emerald-brand`. The `emerald` extension merges with
 Tailwind's default emerald scale rather than replacing it, so existing
 `emerald-50`…`emerald-950` usage in the dashboard is unaffected.
+
+## Mapping to the project web guidelines
+
+The tab structure is mandated, not chosen. Each tab and its required content:
+
+| Tab | Required content | Where it comes from |
+| --- | --- | --- |
+| Home | Project introduction in abstract, concise and attractive | `data/domain.ts` (`PROJECT_ABSTRACT`), `data/engines.ts` |
+| Domain | Literature survey, research gap, research problem, research objectives, methodology, technologies used | `data/domain.ts`, `data/novelty.ts`, `data/architecture.ts` |
+| Milestones | Every assessment with **date and marks allocated**, chosen from a **drop-down** | `data/milestones.ts` |
+| Documents | Charter, proposal, checklists, final documents — **links only** | `data/documents.ts` |
+| Presentations | Slide decks from past presentations, with room for future ones | `data/documents.ts` (`PRESENTATIONS`) |
+| About us | Group members, photographs, e-mail, achievements | `data/team.ts` |
+| Contact us | Phone numbers, e-mails, **general e-mail template** | `data/contact.ts`, `EnquiryForm.tsx` |
+
+Two notes on how the guidelines were interpreted:
+
+- **Milestones** uses the drop-down the brief asks for *and* a full schedule
+  table beneath it. A drop-down reads one assessment well but hides the rest,
+  and dates and weights are most useful side by side.
+- **Contact** composes a `mailto:` rather than posting to a server. That
+  satisfies "general e-mail template" with no backend, stores no personal data,
+  and keeps working under a static export.
+
+### Outstanding constraint
+
+The guidelines state **"Technology allowed: WordPress, HTML, CSS"** with a
+**20 MB** disk limit on the course web server. This site is a Next.js
+application and is intended to be hosted separately, with the course web
+carrying a link to it. Confirm that arrangement with the supervisor before
+submission. If it has to be uploaded to the course web instead, add
+`output: "export"` to `next.config.js` to emit static HTML, CSS and JS, and
+drop the WebGL hero to stay inside the size limit.

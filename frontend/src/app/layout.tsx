@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Sora } from "next/font/google";
+import { Inter, JetBrains_Mono, Sora } from "next/font/google";
 import "./globals.css";
 // Leaflet's stylesheet is imported once here (not inside the dynamically
 // imported map components) so it ships in the global CSS bundle instead of a
@@ -21,6 +21,18 @@ const sora = Sora({
   subsets: ["latin"],
   weight: ["600", "700", "800"],
   variable: "--font-display",
+  display: "swap",
+});
+
+/**
+ * Monospace for figures, thresholds, branch names and file paths on the
+ * landing page. Carrying measured values in a technical face rather than the
+ * body font is what makes a spec read as a spec.
+ */
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-mono",
   display: "swap",
 });
 
@@ -47,7 +59,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${sora.variable} h-full`}
+      className={`${inter.variable} ${sora.variable} ${jetbrainsMono.variable} h-full`}
       suppressHydrationWarning
     >
       <body className="min-h-full font-sans">{children}</body>

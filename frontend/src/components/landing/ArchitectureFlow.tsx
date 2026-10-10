@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   Container,
   Section,
-  SectionHeading,
+  SectionMasthead,
 } from "@/components/landing/primitives/Section";
 import { Reveal } from "@/components/landing/primitives/Reveal";
 import {
@@ -23,88 +23,21 @@ const LAYER_ORDER: readonly StackLayer[] = [
   "persistence",
 ];
 
-/** Nodes grouped into their layer column, preserving declaration order. */
 const NODES_BY_LAYER = LAYER_ORDER.map((layer) => ({
   layer,
   nodes: STACK_NODES.filter((node) => node.layer === layer),
 }));
 
-function NodeCard({
-  node,
-  isActive,
-  isDimmed,
-  onActivate,
-  onClear,
-}: {
-  node: StackNode;
-  isActive: boolean;
-  isDimmed: boolean;
-  onActivate: () => void;
-  onClear: () => void;
-}) {
-  const Icon = node.icon;
-
-  return (
-    <button
-      type="button"
-      onMouseEnter={onActivate}
-      onMouseLeave={onClear}
-      onFocus={onActivate}
-      onBlur={onClear}
-      onClick={onActivate}
-      aria-pressed={isActive}
-      className={cn(
-        "lp-focus group w-full rounded-xl border p-3.5 text-left transition-all duration-300 ring-offset-ink",
-        isActive
-          ? "border-gold/50 bg-gold/[0.08] shadow-glow-gold"
-          : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]",
-        isDimmed && "opacity-40"
-      )}
-    >
-      <span className="flex items-start gap-2.5">
-        <span
-          aria-hidden
-          className={cn(
-            "grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition-colors",
-            isActive
-              ? "border-gold/40 bg-gold/15 text-gold"
-              : "border-white/10 bg-white/5 text-slate-400"
-          )}
-        >
-          <Icon className="h-4 w-4" />
-        </span>
-
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-display text-sm font-bold tracking-tight text-white">
-            {node.label}
-          </span>
-          <span className="mt-0.5 block text-[0.6875rem] leading-tight text-slate-400">
-            {node.role}
-          </span>
-        </span>
-      </span>
-
-      {/* Outgoing payload, revealed when this node is the focus. */}
-      <span
-        className={cn(
-          "mt-2.5 block overflow-hidden text-[0.625rem] font-semibold uppercase tracking-[0.1em] transition-all duration-300",
-          isActive ? "max-h-10 text-gold" : "max-h-0 text-transparent"
-        )}
-      >
-        {node.flowsTo.length > 0 ? `→ ${node.payload}` : "Durable store"}
-      </span>
-    </button>
-  );
-}
+const nodeLabel = (id: string) =>
+  STACK_NODES.find((node) => node.id === id)?.label ?? id;
 
 export function ArchitectureFlow() {
   const [activeId, setActiveId] = useState<string | null>(null);
-
   const activeNode = STACK_NODES.find((node) => node.id === activeId) ?? null;
 
   /**
-   * A node stays lit when it is the focus, when the focus sends data to it, or
-   * when it sends data to the focus — so hovering any box lights its real
+   * A row stays lit when it is the focus, when the focus sends data to it, or
+   * when it sends data to the focus — so selecting any service lights its real
    * request path rather than an arbitrary neighbour.
    */
   const isOnActivePath = (node: StackNode): boolean => {
@@ -115,95 +48,153 @@ export function ArchitectureFlow() {
   };
 
   return (
-    <Section id="architecture" tone="ink">
-      <div
-        aria-hidden
-        className="lp-grid-blueprint lp-grid-mask absolute inset-0"
-      />
-
-      <Container className="relative">
-        <SectionHeading
+    <Section id="architecture" tone="ink" className="py-20 sm:py-24 lg:py-28">
+      <Container>
+        <SectionMasthead
           id="architecture"
+          index="07"
+          label="Technologies used"
           tone="ink"
-          eyebrow="Technical architecture"
-          title={
-            <>
-              One request path, from browser to{" "}
-              <span className="lp-text-gold-gradient">model and back</span>.
-            </>
-          }
-          description="Hover or focus any service to trace what it sends and where. The arrangement below is the deployed topology, not a reference diagram."
+          title="The request path, as deployed."
+          lede="Four layers, seven services. Select a row to see what it sends and to whom. This is the topology that runs, not a reference diagram."
         />
 
-        <Reveal className="mt-12 sm:mt-14">
-          <div className="grid gap-4 lg:grid-cols-4 lg:gap-5">
+        <Reveal className="mt-14 sm:mt-16">
+          {/* Layer columns. */}
+          <div className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
             {NODES_BY_LAYER.map(({ layer, nodes }, columnIndex) => (
-              <div key={layer} className="relative">
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="font-display text-[0.625rem] font-bold tabular-nums text-gold">
+              <div key={layer}>
+                <div className="flex items-baseline gap-2.5 border-b border-white/10 pb-3">
+                  <span className="font-mono text-[0.625rem] tabular-nums text-gold">
                     {String(columnIndex + 1).padStart(2, "0")}
                   </span>
-                  <h3 className="text-[0.625rem] font-bold uppercase tracking-[0.16em] text-slate-400">
+                  <h3 className="font-mono text-[0.625rem] uppercase tracking-[0.18em] text-slate-500">
                     {LAYER_LABELS[layer]}
                   </h3>
                 </div>
 
-                <ul className="space-y-3">
-                  {nodes.map((node) => (
-                    <li key={node.id}>
-                      <NodeCard
-                        node={node}
-                        isActive={activeId === node.id}
-                        isDimmed={!isOnActivePath(node)}
-                        onActivate={() => setActiveId(node.id)}
-                        onClear={() => setActiveId(null)}
-                      />
-                    </li>
-                  ))}
-                </ul>
+                <ul className="mt-1">
+                  {nodes.map((node) => {
+                    const Icon = node.icon;
+                    const isActive = activeId === node.id;
 
-                {/* Connector between layer columns. Horizontal on desktop,
-                    hidden on narrow screens where the columns stack. */}
-                {columnIndex < NODES_BY_LAYER.length - 1 ? (
-                  <span
-                    aria-hidden
-                    className="pointer-events-none absolute -right-3 top-1/2 hidden h-px w-5 bg-gradient-to-r from-gold/50 to-transparent lg:block"
-                  />
-                ) : null}
+                    return (
+                      <li key={node.id}>
+                        <button
+                          type="button"
+                          onMouseEnter={() => setActiveId(node.id)}
+                          onMouseLeave={() => setActiveId(null)}
+                          onFocus={() => setActiveId(node.id)}
+                          onBlur={() => setActiveId(null)}
+                          onClick={() => setActiveId(node.id)}
+                          aria-pressed={isActive}
+                          className={cn(
+                            "lp-focus group flex w-full items-start gap-3 border-b border-white/5 py-3.5 text-left transition-opacity duration-300 ring-offset-ink",
+                            !isOnActivePath(node) && "opacity-30"
+                          )}
+                        >
+                          <Icon
+                            aria-hidden
+                            className={cn(
+                              "mt-0.5 h-4 w-4 shrink-0 transition-colors",
+                              isActive ? "text-gold" : "text-slate-500"
+                            )}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span
+                              className={cn(
+                                "block truncate text-[0.875rem] font-semibold transition-colors",
+                                isActive ? "text-gold" : "text-white"
+                              )}
+                            >
+                              {node.label}
+                            </span>
+                            <span className="mt-0.5 block text-[0.75rem] leading-snug text-slate-500">
+                              {node.role}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             ))}
           </div>
 
-          {/* Live caption so the hover state is also announced as text. */}
-          <p
-            aria-live="polite"
-            className="mt-6 min-h-[1.5rem] text-center text-[0.8125rem] text-slate-400"
-          >
-            {activeNode ? (
-              <>
-                <span className="font-semibold text-white">
-                  {activeNode.label}
-                </span>
-                {activeNode.flowsTo.length > 0 ? (
-                  <>
-                    {" sends "}
-                    <span className="text-gold">{activeNode.payload}</span>
-                    {" to "}
-                    {activeNode.flowsTo
-                      .map(
-                        (id) =>
-                          STACK_NODES.find((node) => node.id === id)?.label ?? id
-                      )
-                      .join(", ")}
-                    .
-                  </>
-                ) : (
-                  <> is the terminal store: {activeNode.payload}.</>
-                )}
-              </>
-            ) : (
-              "Select a service to trace its data flow."
-            )}
+          {/* Edge table. Dense by design: a payload manifest reads as
+              engineering documentation, and it also makes the whole data flow
+              available without any hover interaction. */}
+          <div className="mt-14 overflow-x-auto">
+            <table className="w-full min-w-[34rem] border-collapse text-left">
+              <caption className="sr-only">
+                Service-to-service data flow, listing the payload each service
+                sends and its destinations.
+              </caption>
+              <thead>
+                <tr className="border-y border-white/10">
+                  <th
+                    scope="col"
+                    className="py-3 pr-6 font-mono text-[0.625rem] font-medium uppercase tracking-[0.16em] text-slate-500"
+                  >
+                    From
+                  </th>
+                  <th
+                    scope="col"
+                    className="py-3 pr-6 font-mono text-[0.625rem] font-medium uppercase tracking-[0.16em] text-slate-500"
+                  >
+                    Payload
+                  </th>
+                  <th
+                    scope="col"
+                    className="py-3 font-mono text-[0.625rem] font-medium uppercase tracking-[0.16em] text-slate-500"
+                  >
+                    To
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {STACK_NODES.map((node) => (
+                  <tr
+                    key={node.id}
+                    onMouseEnter={() => setActiveId(node.id)}
+                    onMouseLeave={() => setActiveId(null)}
+                    className={cn(
+                      "border-b border-white/5 align-top transition-opacity duration-300",
+                      !isOnActivePath(node) && "opacity-30"
+                    )}
+                  >
+                    <th
+                      scope="row"
+                      className={cn(
+                        "whitespace-nowrap py-3.5 pr-6 text-[0.8125rem] font-semibold transition-colors",
+                        activeId === node.id ? "text-gold" : "text-white"
+                      )}
+                    >
+                      {node.label}
+                    </th>
+                    <td className="py-3.5 pr-6 text-[0.8125rem] leading-snug text-slate-400">
+                      {node.payload}
+                    </td>
+                    <td className="py-3.5 font-mono text-[0.75rem] leading-snug text-slate-500">
+                      {node.flowsTo.length > 0
+                        ? node.flowsTo.map(nodeLabel).join(", ")
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mirrors the hover state as text, so the highlighted path is not
+              conveyed by opacity alone. */}
+          <p aria-live="polite" className="sr-only">
+            {activeNode
+              ? activeNode.flowsTo.length > 0
+                ? `${activeNode.label} sends ${activeNode.payload} to ${activeNode.flowsTo.map(nodeLabel).join(", ")}.`
+                : `${activeNode.label} is the terminal store: ${activeNode.payload}.`
+              : ""}
           </p>
         </Reveal>
       </Container>

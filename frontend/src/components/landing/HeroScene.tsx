@@ -41,8 +41,8 @@ function Massing() {
   useFrame((state) => {
     if (!group.current) return;
     const t = state.clock.getElapsedTime();
-    group.current.rotation.y = t * 0.12;
-    group.current.position.y = Math.sin(t * 0.55) * 0.06;
+    group.current.rotation.y = t * 0.08;
+    group.current.position.y = Math.sin(t * 0.35) * 0.04;
   });
 
   return (
@@ -77,7 +77,7 @@ function ScanPlane() {
     if (!mesh.current) return;
     const t = state.clock.getElapsedTime();
     // 0 -> 3 and back, eased, so the sweep lingers at the extremes.
-    mesh.current.position.y = 1.5 + Math.sin(t * 0.6) * 1.5;
+    mesh.current.position.y = 1.5 + Math.sin(t * 0.32) * 1.5;
   });
 
   return (
@@ -86,7 +86,7 @@ function ScanPlane() {
       <meshBasicMaterial
         color={GOLD}
         transparent
-        opacity={0.07}
+        opacity={0.045}
         side={THREE.DoubleSide}
         depthWrite={false}
       />

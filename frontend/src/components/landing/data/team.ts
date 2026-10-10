@@ -17,6 +17,10 @@ import type {
  *  - `branch`      the git branch each member works on. These four values are
  *                  real, read from the repository, and map each member to the
  *                  component below. Verify the pairing before publishing.
+ *  - `email`       required on the About us page.
+ *  - `photo`       optional path under /public (e.g. "/team/name.jpg").
+ *                  Omit it and the card shows a monogram instead.
+ *  - `achievements` optional list of awards or publications.
  *  - `focusAreas`  three to four short phrases. These are derived from the code
  *                  actually committed on each branch.
  *
@@ -27,6 +31,7 @@ import type {
 export const TEAM: readonly TeamMember[] = [
   {
     id: "member-1",
+    email: "researcher.one@example.com",
     name: "Researcher One",
     studentId: "ITxxxxxxxx",
     componentLabel: "Component 1",
@@ -41,6 +46,7 @@ export const TEAM: readonly TeamMember[] = [
   },
   {
     id: "member-2",
+    email: "researcher.two@example.com",
     name: "Researcher Two",
     studentId: "ITxxxxxxxx",
     componentLabel: "Component 2",
@@ -55,6 +61,7 @@ export const TEAM: readonly TeamMember[] = [
   },
   {
     id: "member-3",
+    email: "researcher.three@example.com",
     name: "Researcher Three",
     studentId: "ITxxxxxxxx",
     componentLabel: "Component 3",
@@ -69,6 +76,7 @@ export const TEAM: readonly TeamMember[] = [
   },
   {
     id: "member-4",
+    email: "researcher.four@example.com",
     name: "Researcher Four",
     studentId: "ITxxxxxxxx",
     componentLabel: "Component 4",

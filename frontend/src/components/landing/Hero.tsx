@@ -3,14 +3,14 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { ArrowRight, FileText, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { Container } from "@/components/landing/primitives/Section";
 import { StatsStrip } from "@/components/landing/StatsStrip";
 
 /**
- * WebGL is heavy and purely decorative here, so the scene is split out of the
- * initial bundle and only requested once we know the viewport can use it.
+ * WebGL is heavy and decorative here, so the scene is split out of the initial
+ * bundle and only requested once we know the viewport can use it.
  */
 const HeroScene = dynamic(() => import("@/components/landing/HeroScene"), {
   ssr: false,
@@ -19,8 +19,7 @@ const HeroScene = dynamic(() => import("@/components/landing/HeroScene"), {
 
 /**
  * True only on viewports wide enough for the massing to read, and when the
- * visitor has not asked for reduced motion. Phones get the static blueprint
- * backdrop instead, which keeps the hero cheap on mobile data and battery.
+ * visitor has not asked for reduced motion.
  */
 function useWantsThreeDimensionalScene(): boolean {
   const [wants, setWants] = useState(false);
@@ -45,92 +44,68 @@ export function Hero() {
 
   return (
     <section
-      id="overview"
-      data-landing-section
       aria-labelledby="hero-heading"
-      className="relative isolate overflow-hidden bg-ink pb-16 pt-28 sm:pb-20 sm:pt-32 lg:pb-28 lg:pt-40"
+      className="lp-grain relative isolate overflow-hidden bg-ink pb-16 pt-28 sm:pb-20 sm:pt-36 lg:pb-24 lg:pt-44"
     >
-      {/* Layered backdrop: drafting grid, then two soft brand glows. */}
-      <div
-        aria-hidden
-        className="lp-grid-blueprint lp-grid-mask absolute inset-0 -z-10"
-      />
-      <div
-        aria-hidden
-        className="absolute -top-40 left-1/2 -z-10 h-[32rem] w-[32rem] -translate-x-1/2 rounded-full bg-gold/10 blur-[120px]"
-      />
-      <div
-        aria-hidden
-        className="absolute -bottom-32 right-0 -z-10 h-96 w-96 rounded-full bg-emerald-brand/10 blur-[120px]"
-      />
+      <div aria-hidden className="lp-grid lp-grid-mask absolute inset-0 -z-10" />
 
       <Container>
-        <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_26rem] lg:gap-8 xl:grid-cols-[minmax(0,1fr)_30rem]">
-          <div className="max-w-2xl">
-            <p className="inline-flex items-center gap-2 rounded-full border border-gold/25 bg-gold/[0.07] px-3.5 py-1.5 text-[0.625rem] font-bold uppercase tracking-[0.16em] text-gold sm:text-[0.6875rem]">
-              <Sparkles aria-hidden className="h-3.5 w-3.5" />
-              Zero-human-touch pre-construction intelligence
+        <div className="grid items-start gap-14 lg:grid-cols-12 lg:gap-10">
+          <div className="lg:col-span-7">
+            {/* Standfirst line instead of a pill badge. */}
+            <p className="flex items-center gap-3 font-mono text-[0.6875rem] uppercase tracking-[0.18em] text-slate-500">
+              <span aria-hidden className="h-px w-8 bg-gold" />
+              Pre-construction intelligence
             </p>
 
             <h1
               id="hero-heading"
-              className="mt-6 font-display text-[2rem] font-bold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-[3.5rem]"
+              className="mt-7 max-w-[20ch] font-display text-[2.125rem] font-bold leading-[1.05] tracking-[-0.03em] text-white sm:text-[3rem] lg:text-[3.75rem]"
             >
-              Precision feasibility, structural AI and{" "}
-              <span className="lp-text-gold-gradient">generative BIM</span> in a
-              single unified platform.
+              Know what a site will cost you{" "}
+              <span className="text-gold">before you own it.</span>
             </h1>
 
-            <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              Between a raw land purchase and a signed building permit sits a
-              multi-million rupee gap: unverified blueprints, unread topography,
-              municipal zoning rules discovered too late, and a lifecycle cost
-              nobody modelled. This platform closes that gap end to end &mdash;
-              validating the plan, prescribing the structural fix, mapping the
-              approval pathway, and costing the build before ground is broken.
+            <p className="mt-7 max-w-xl text-[1.0625rem] leading-[1.65] text-slate-400 sm:text-lg">
+              Most of what goes wrong on a building project was already decided
+              before anyone broke ground: the slope nobody measured, the column
+              that lands in a doorway, the clearance nobody knew was required.
+              This platform checks all of it from the drawings you already have.
             </p>
 
-            <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
               <Link
                 href="/login"
-                className="lp-focus group inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-gold px-6 text-[0.9375rem] font-bold text-ink shadow-glow-gold transition hover:bg-gold-light active:scale-[0.98] ring-offset-ink"
+                className="lp-focus group inline-flex min-h-touch items-center justify-center gap-2 bg-gold px-7 text-[0.9375rem] font-bold text-ink transition-colors hover:bg-gold-light ring-offset-ink"
               >
-                Explore live platform
+                Open the platform
                 <ArrowRight
                   aria-hidden
-                  className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                  className="h-4 w-4 transition-transform group-hover:translate-x-1"
                 />
               </Link>
 
               <Link
-                href="#novelty"
-                className="lp-focus inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-6 text-[0.9375rem] font-semibold text-slate-200 transition hover:border-white/25 hover:bg-white/[0.08] ring-offset-ink"
+                href="/domain"
+                className="lp-focus inline-flex min-h-touch items-center justify-center text-[0.9375rem] font-semibold text-slate-300 underline decoration-slate-600 decoration-1 underline-offset-[6px] transition-colors hover:text-white hover:decoration-gold ring-offset-ink"
               >
-                <FileText aria-hidden className="h-4 w-4" />
-                View research contribution
+                Read the research domain
               </Link>
             </div>
           </div>
 
-          {/* Scene column. Reserves its box on every breakpoint so the hero
-              never reflows when WebGL finishes loading. */}
-          <div className="relative hidden h-[22rem] lg:block xl:h-[26rem]">
+          {/* Scene column. Reserves its box so the hero never reflows when
+              WebGL arrives. */}
+          <div className="relative hidden h-[24rem] lg:col-span-5 lg:block xl:h-[27rem]">
             {showScene ? (
               <HeroScene />
             ) : (
-              <div
-                aria-hidden
-                className="lp-grid-blueprint h-full w-full rounded-2xl border border-white/10 opacity-40"
-              />
+              <div aria-hidden className="lp-grid h-full w-full opacity-30" />
             )}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink via-transparent to-transparent"
-            />
           </div>
         </div>
 
-        <div className="mt-14 sm:mt-16 lg:mt-20">
+        <div className="mt-16 sm:mt-20 lg:mt-24">
           <StatsStrip />
         </div>
       </Container>

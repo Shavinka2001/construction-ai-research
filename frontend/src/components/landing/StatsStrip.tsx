@@ -5,9 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { HERO_STATS } from "@/components/landing/data/stats";
 import type { HeroStat } from "@/components/landing/types";
 
-const COUNT_DURATION_MS = 1100;
+const COUNT_DURATION_MS = 900;
 
-/** Eases out so the number decelerates into its final value. */
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
@@ -56,20 +55,20 @@ function StatItem({
   const decimals = stat.decimals ?? 0;
 
   // Server-render and first paint show the real figure; the count-up only
-  // takes over once we know the client is live. Without JavaScript the strip
-  // therefore reads 99.2% rather than 0%.
+  // takes over once the client is live, so without JavaScript the strip reads
+  // 99.2 rather than 0.
   const value = mounted ? counted : stat.value;
 
   return (
-    <div className="flex flex-col gap-1.5 border-b border-r border-white/10 px-1 py-4 sm:px-4">
-      <dd className="font-display text-2xl font-bold tabular-nums tracking-tight text-white sm:text-3xl">
+    <div className="pt-4">
+      <dd className="font-mono text-[1.375rem] font-medium tabular-nums leading-none tracking-tight text-white sm:text-2xl">
         {stat.prefix}
         {value.toFixed(decimals)}
         <span className="text-gold">{stat.suffix}</span>
       </dd>
       <dt
         title={stat.provenance}
-        className="text-[0.6875rem] font-semibold uppercase leading-tight tracking-[0.12em] text-slate-400 sm:text-xs"
+        className="mt-2.5 cursor-help text-[0.75rem] leading-snug text-slate-500"
       >
         {stat.label}
       </dt>
@@ -77,6 +76,13 @@ function StatItem({
   );
 }
 
+/**
+ * Headline figures.
+ *
+ * Set as four columns under a single hairline rather than inside a bordered
+ * panel — the rule and the mono figures do the work, so the hero keeps one
+ * visual idea instead of two.
+ */
 export function StatsStrip() {
   const ref = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
@@ -107,14 +113,8 @@ export function StatsStrip() {
   }, []);
 
   return (
-    <div
-      ref={ref}
-      className="lp-glass overflow-hidden rounded-2xl shadow-inset-hairline"
-    >
-      {/* Each cell carries a right and bottom hairline; the negative margins
-          pull the outermost ones past the clipped edge, so the same markup
-          yields 2x2 on phones and 1x4 from `sm` up with no trailing rules. */}
-      <dl className="-mb-px -mr-px grid grid-cols-2 text-center sm:grid-cols-4">
+    <div ref={ref} className="border-t border-white/15">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-7 sm:grid-cols-4 sm:gap-x-8">
         {HERO_STATS.map((stat) => (
           <StatItem
             key={stat.label}
