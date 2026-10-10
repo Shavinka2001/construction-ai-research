@@ -123,3 +123,132 @@ body {
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
 }
+
+/* ==========================================================================
+   Landing page ("Industrial Luxury") — scoped utilities.
+   Only consumed by src/components/landing/**; nothing here targets the
+   dashboard or auth surfaces.
+   ========================================================================== */
+
+@layer components {
+  /* Frosted panel on the dark ink sections. */
+  .lp-glass {
+    background: linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(255, 255, 255, 0.02) 55%,
+      rgba(255, 255, 255, 0.04) 100%
+    );
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+  }
+
+  /* Frosted panel on the light slate-50 sections. */
+  .lp-glass-light {
+    background: linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(255, 255, 255, 0.72) 100%
+    );
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(15, 23, 42, 0.07);
+  }
+
+  /* Hairline gold top edge used on featured cards. */
+  .lp-hairline-gold {
+    position: relative;
+  }
+  .lp-hairline-gold::before {
+    content: "";
+    position: absolute;
+    inset-inline: 1.25rem;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(212, 175, 55, 0.75),
+      transparent
+    );
+  }
+
+  .lp-text-gold-gradient {
+    background: linear-gradient(104deg, #e4c65a 0%, #d4af37 45%, #b8942e 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Blueprint drafting grid. Sized in rem so it scales with the root font. */
+  .lp-grid-blueprint {
+    background-image:
+      linear-gradient(to right, rgba(148, 163, 184, 0.09) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148, 163, 184, 0.09) 1px, transparent 1px);
+    background-size: 3.5rem 3.5rem;
+  }
+
+  .lp-grid-blueprint-light {
+    background-image:
+      linear-gradient(to right, rgba(15, 23, 42, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
+    background-size: 3.5rem 3.5rem;
+  }
+
+  /* Radial vignette that fades the grid toward the section edges. */
+  .lp-grid-mask {
+    mask-image: radial-gradient(ellipse 80% 65% at 50% 40%, #000 35%, transparent 100%);
+    -webkit-mask-image: radial-gradient(
+      ellipse 80% 65% at 50% 40%,
+      #000 35%,
+      transparent 100%
+    );
+  }
+
+  /* Shared focus treatment — gold ring that works on both ink and slate. */
+  .lp-focus {
+    @apply outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-gold;
+  }
+}
+
+/* Smooth-scroll + sticky-nav offset for the landing anchors. Scoped to the
+   landing route via the `data-landing` attribute set in page.tsx. */
+html[data-landing="true"] {
+  scroll-behavior: smooth;
+}
+
+html[data-landing="true"] :target,
+[data-landing-section] {
+  scroll-margin-top: 5.5rem;
+}
+
+/* Respect the OS reduced-motion setting: kill decorative motion everywhere on
+   the landing page, and disable smooth scrolling. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-landing="true"] {
+    scroll-behavior: auto;
+  }
+
+  html[data-landing="true"] *,
+  html[data-landing="true"] *::before,
+  html[data-landing="true"] *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Scroll-reveal hidden state.
+   Gated on `data-landing`, which LandingScrollScope sets on mount, so the
+   content is only ever hidden when the JavaScript that reveals it is running.
+   Reduced-motion visitors get it unconditionally visible. */
+html[data-landing="true"] [data-reveal="pending"] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-landing="true"] [data-reveal="pending"] {
+    opacity: 1;
+  }
+}
