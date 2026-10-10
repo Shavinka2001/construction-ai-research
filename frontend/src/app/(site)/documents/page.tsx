@@ -54,9 +54,9 @@ export default function DocumentsPage() {
         lede="Documents already submitted carry a link. Those still in progress are listed as pending rather than hidden, so the record stays complete."
       />
 
-      <Section id="documents" className="py-16 sm:py-20">
+      <Section id="documents" className="py-section lg:py-section-lg">
         <Container>
-          <p className="font-mono text-[0.75rem] text-slate-400">
+          <p className="font-mono text-micro text-slate-400">
             {published} of {PROJECT_DOCUMENTS.length} available
           </p>
 
@@ -66,7 +66,7 @@ export default function DocumentsPage() {
                 <section aria-labelledby={`group-${group.kind}`}>
                   <h2
                     id={`group-${group.kind}`}
-                    className="border-b border-slate-200 pb-3 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-slate-400"
+                    className="border-b border-slate-200 pb-3 lp-label text-slate-400"
                   >
                     {DOCUMENT_KIND_LABELS[group.kind]}
                   </h2>
@@ -80,13 +80,13 @@ export default function DocumentsPage() {
                           <span className="min-w-0 flex-1">
                             <span
                               className={cn(
-                                "block text-[0.9375rem] font-semibold leading-snug",
+                                "block text-body font-semibold leading-snug",
                                 isPending ? "text-slate-400" : "text-ink"
                               )}
                             >
                               {doc.title}
                             </span>
-                            <span className="mt-1 block font-mono text-[0.6875rem] text-slate-400">
+                            <span className="mt-1 block font-mono text-label text-slate-400">
                               {doc.author}
                               {doc.submittedOn
                                 ? ` · ${formatDate(doc.submittedOn)}`
@@ -95,11 +95,11 @@ export default function DocumentsPage() {
                           </span>
 
                           {isPending ? (
-                            <span className="shrink-0 font-mono text-[0.625rem] uppercase tracking-[0.14em] text-slate-400">
+                            <span className="shrink-0 lp-label text-slate-400">
                               Pending
                             </span>
                           ) : (
-                            <span className="flex shrink-0 items-center gap-1.5 font-mono text-[0.625rem] uppercase tracking-[0.14em] text-gold-dark">
+                            <span className="flex shrink-0 items-center gap-1.5 lp-label text-gold-dark">
                               View
                               <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
                             </span>

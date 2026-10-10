@@ -33,11 +33,11 @@ function monogram(name: string): string {
 export function TeamSection() {
   return (
     <>
-      <Section id="team" className="py-16 sm:py-20">
+      <Section id="team" className="py-section lg:py-section-lg">
         <Container>
           <h2
             id="team-heading"
-            className="font-mono text-[0.625rem] uppercase tracking-[0.18em] text-slate-400"
+            className="lp-label text-slate-400"
           >
             Group members
           </h2>
@@ -70,16 +70,16 @@ export function TeamSection() {
 
                       <div className="min-w-0">
                         <p className="flex items-baseline gap-2.5">
-                          <span className="font-mono text-[0.6875rem] tabular-nums text-gold">
+                          <span className="font-mono text-label tabular-nums text-gold">
                             {String(index + 1).padStart(2, "0")}
                           </span>
-                          <span className="font-display text-base font-bold tracking-[-0.01em] text-ink">
+                          <span className="font-display text-base font-bold tracking-snug text-ink">
                             {member.name}
                           </span>
                         </p>
 
                         {member.studentId ? (
-                          <p className="mt-1 font-mono text-[0.6875rem] text-slate-400">
+                          <p className="mt-1 font-mono text-label text-slate-400">
                             {member.studentId}
                           </p>
                         ) : null}
@@ -87,7 +87,7 @@ export function TeamSection() {
                         {member.email ? (
                           <a
                             href={`mailto:${member.email}`}
-                            className="lp-focus mt-2 inline-flex min-h-touch items-center gap-1.5 font-mono text-[0.6875rem] text-slate-500 underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-gold ring-offset-white"
+                            className="lp-focus mt-2 inline-flex min-h-touch items-center gap-1.5 font-mono text-label text-slate-500 underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-gold ring-offset-white"
                           >
                             <Mail aria-hidden className="h-3.5 w-3.5" />
                             {member.email}
@@ -99,14 +99,14 @@ export function TeamSection() {
 
                   {/* Component. */}
                   <div className="sm:col-span-3">
-                    <p className="font-mono text-[0.625rem] uppercase tracking-[0.16em] text-slate-400">
+                    <p className="lp-label text-slate-400">
                       {member.componentLabel}
                     </p>
-                    <p className="mt-2 text-[0.875rem] font-semibold leading-snug text-ink">
+                    <p className="mt-2 text-body-sm font-semibold leading-snug text-ink">
                       {member.componentTitle}
                     </p>
                     {member.branch ? (
-                      <p className="mt-2.5 font-mono text-[0.6875rem] text-slate-400">
+                      <p className="mt-2.5 font-mono text-label text-slate-400">
                         branch/{member.branch}
                       </p>
                     ) : null}
@@ -114,7 +114,7 @@ export function TeamSection() {
 
                   {/* Contribution and achievements. */}
                   <div className="sm:col-span-5">
-                    <p className="text-[0.8125rem] leading-[1.7] text-slate-600">
+                    <p className="text-caption leading-[1.7] text-slate-600">
                       {member.focusAreas.join(". ")}.
                     </p>
 
@@ -123,7 +123,7 @@ export function TeamSection() {
                         {member.achievements.map((achievement) => (
                           <li
                             key={achievement}
-                            className="flex gap-2 text-[0.8125rem] text-slate-500"
+                            className="flex gap-2 text-caption text-slate-500"
                           >
                             <span
                               aria-hidden
@@ -147,21 +147,21 @@ export function TeamSection() {
         id="supervision"
         tone="ink"
         ariaLabel="Supervision and affiliation"
-        className="py-16 sm:py-20"
+        className="py-section lg:py-section-lg"
       >
         <Container>
           <div className="grid gap-10 sm:grid-cols-12 sm:gap-8">
             <div className="sm:col-span-4">
-              <h2 className="font-mono text-[0.625rem] uppercase tracking-[0.18em] text-gold">
+              <h2 className="lp-label text-gold">
                 Supervision
               </h2>
               <ul className="mt-5 space-y-4">
                 {SUPERVISORS.map((supervisor) => (
                   <li key={supervisor.id}>
-                    <p className="text-[0.9375rem] font-semibold text-white">
+                    <p className="text-body font-semibold text-white">
                       {supervisor.name}
                     </p>
-                    <p className="mt-0.5 text-[0.75rem] text-slate-500">
+                    <p className="mt-0.5 text-micro text-slate-500">
                       {supervisor.title} · {supervisor.role}
                     </p>
                   </li>
@@ -170,7 +170,7 @@ export function TeamSection() {
             </div>
 
             <div className="sm:col-span-8">
-              <h2 className="font-mono text-[0.625rem] uppercase tracking-[0.18em] text-gold">
+              <h2 className="lp-label text-gold">
                 Affiliation
               </h2>
 
@@ -186,10 +186,10 @@ export function TeamSection() {
                     key={label}
                     className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:items-baseline sm:gap-6"
                   >
-                    <dt className="font-mono text-[0.625rem] uppercase tracking-[0.14em] text-slate-500 sm:w-36 sm:shrink-0">
+                    <dt className="lp-label text-slate-500 sm:w-36 sm:shrink-0">
                       {label}
                     </dt>
-                    <dd className="text-[0.875rem] text-slate-300">{value}</dd>
+                    <dd className="text-body-sm text-slate-300">{value}</dd>
                   </div>
                 ))}
               </dl>

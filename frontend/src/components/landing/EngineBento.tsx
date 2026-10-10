@@ -8,7 +8,7 @@ import { EngineGrid } from "@/components/landing/EngineGrid";
 /** The four research components, as full-width editorial rows. */
 export function EngineBento() {
   return (
-    <Section id="engines" className="py-20 sm:py-24 lg:py-28">
+    <Section id="engines" className="py-section lg:py-section-lg">
       <Container>
         <SectionMasthead
           id="engines"

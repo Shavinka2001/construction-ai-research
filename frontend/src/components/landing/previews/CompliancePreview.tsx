@@ -23,7 +23,7 @@ export function CompliancePreview() {
               <span
                 aria-hidden
                 className={[
-                  "grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[0.5625rem] font-bold",
+                  "grid h-5 w-5 shrink-0 place-items-center rounded-full border text-label-xs font-bold",
                   isDone
                     ? "border-emerald-brand/50 bg-emerald-brand/20 text-emerald-brand"
                     : isActive
@@ -36,7 +36,7 @@ export function CompliancePreview() {
 
               <span
                 className={[
-                  "flex-1 truncate text-[0.6875rem] font-semibold",
+                  "flex-1 truncate text-label font-semibold",
                   isActive ? "text-ink" : isDone ? "text-slate-600" : "text-slate-400",
                 ].join(" ")}
               >
@@ -44,7 +44,7 @@ export function CompliancePreview() {
               </span>
 
               {isActive ? (
-                <span className="shrink-0 rounded-md bg-gold/15 px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-gold-dark">
+                <span className="shrink-0 rounded-md bg-gold/15 px-1.5 py-0.5 text-label-xs font-bold uppercase tracking-wide text-gold-dark">
                   Minor violation
                 </span>
               ) : null}
@@ -56,7 +56,7 @@ export function CompliancePreview() {
       {/* Window-to-floor ratio audit against the 10% statutory minimum. */}
       <div className="rounded-xl border border-slate-200 bg-white/70 p-3">
         <div className="flex items-baseline justify-between">
-          <p className="text-[0.5625rem] font-bold uppercase tracking-[0.12em] text-slate-500">
+          <p className="text-label-xs font-bold uppercase tracking-label text-slate-500">
             Window-to-floor ratio
           </p>
           <p className="text-sm font-bold tabular-nums text-emerald-brand">
@@ -77,7 +77,7 @@ export function CompliancePreview() {
           />
         </div>
 
-        <p className="mt-1.5 text-[0.5625rem] font-medium text-slate-500">
+        <p className="mt-1.5 text-label-xs font-medium text-slate-500">
           Minimum 10% &mdash; natural daylight provision satisfied
         </p>
       </div>

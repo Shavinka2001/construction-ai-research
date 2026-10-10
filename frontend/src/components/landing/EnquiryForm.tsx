@@ -47,10 +47,10 @@ export function EnquiryForm() {
   )}&body=${encodeURIComponent(body)}`;
 
   const fieldClass =
-    "lp-focus mt-2 block min-h-touch w-full border border-slate-300 bg-white px-4 py-3 text-[0.9375rem] text-ink placeholder:text-slate-400 ring-offset-white";
+    "lp-focus mt-2 block min-h-touch w-full border border-slate-300 bg-white px-4 py-3 text-body text-ink placeholder:text-slate-400 ring-offset-white";
 
   const labelClass =
-    "font-mono text-[0.625rem] uppercase tracking-[0.16em] text-slate-400";
+    "lp-label text-slate-400";
 
   return (
     <form
@@ -128,13 +128,13 @@ export function EnquiryForm() {
 
       <a
         href={mailto}
-        className="lp-focus mt-7 inline-flex min-h-touch items-center justify-center gap-2 bg-gold px-6 text-[0.9375rem] font-bold text-ink transition-colors hover:bg-gold-light ring-offset-white"
+        className="lp-focus mt-7 inline-flex min-h-touch items-center justify-center gap-2 bg-gold px-6 text-body font-bold text-ink transition-colors hover:bg-gold-light ring-offset-white"
       >
         <Mail aria-hidden className="h-4 w-4" />
         Open in your mail app
       </a>
 
-      <p className="mt-4 text-[0.75rem] leading-relaxed text-slate-500">
+      <p className="mt-4 text-micro leading-relaxed text-slate-500">
         This opens your own e-mail application with the message below ready to
         send to <span className="font-mono text-slate-600">{ENQUIRY_ADDRESS}</span>.
         Nothing is submitted to or stored by this website.
@@ -142,10 +142,10 @@ export function EnquiryForm() {
 
       {/* Preview of exactly what will be handed to the mail client. */}
       <details className="mt-6 border-t border-slate-200 pt-4">
-        <summary className="lp-focus cursor-pointer font-mono text-[0.625rem] uppercase tracking-[0.16em] text-slate-400 ring-offset-white">
+        <summary className="lp-focus cursor-pointer lp-label text-slate-400 ring-offset-white">
           Preview the message
         </summary>
-        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words bg-slate-50 p-4 font-mono text-[0.75rem] leading-relaxed text-slate-600">
+        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words bg-slate-50 p-4 font-mono text-micro leading-relaxed text-slate-600">
           {`To: ${ENQUIRY_ADDRESS}\nSubject: [Construction AI] ${subject}\n\n${body}`}
         </pre>
       </details>

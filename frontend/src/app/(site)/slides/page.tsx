@@ -34,7 +34,7 @@ export default function SlidesPage() {
         lede="The deck presented at every assessment, from the proposal through to the final defence. Decks not yet given are listed so the sequence is clear."
       />
 
-      <Section id="slides" className="py-16 sm:py-20">
+      <Section id="slides" className="py-section lg:py-section-lg">
         <Container>
           <ol className="border-t border-slate-200">
             {PRESENTATIONS.map((deck, index) => {
@@ -49,26 +49,26 @@ export default function SlidesPage() {
                     )}
                   >
                     <div className="flex items-baseline gap-3 sm:col-span-4">
-                      <span className="font-mono text-[0.6875rem] tabular-nums text-gold">
+                      <span className="font-mono text-label tabular-nums text-gold">
                         {String(index + 1).padStart(2, "0")}
                       </span>
                       <div>
-                        <h2 className="font-display text-lg font-bold tracking-[-0.015em] text-ink">
+                        <h2 className="font-display text-lg font-bold tracking-snug text-ink">
                           {deck.title}
                         </h2>
-                        <p className="mt-1.5 font-mono text-[0.6875rem] text-slate-400">
+                        <p className="mt-1.5 font-mono text-label text-slate-400">
                           {formatDate(deck.date)}
                         </p>
                       </div>
                     </div>
 
-                    <p className="text-[0.875rem] leading-[1.7] text-slate-600 sm:col-span-5">
+                    <p className="text-body-sm leading-[1.7] text-slate-600 sm:col-span-5">
                       {deck.summary}
                     </p>
 
                     <div className="sm:col-span-3 sm:text-right">
                       {isPending ? (
-                        <span className="inline-flex items-center gap-2 font-mono text-[0.625rem] uppercase tracking-[0.14em] text-slate-400">
+                        <span className="inline-flex items-center gap-2 lp-label text-slate-400">
                           <PresentationIcon aria-hidden className="h-4 w-4" />
                           Not yet presented
                         </span>
@@ -77,7 +77,7 @@ export default function SlidesPage() {
                           href={deck.href ?? "#"}
                           target="_blank"
                           rel="noreferrer noopener"
-                          className="lp-focus group inline-flex min-h-touch items-center gap-2 border-b border-ink/20 text-[0.875rem] font-semibold text-ink transition-colors hover:border-gold ring-offset-white"
+                          className="lp-focus group inline-flex min-h-touch items-center gap-2 border-b border-ink/20 text-body-sm font-semibold text-ink transition-colors hover:border-gold ring-offset-white"
                         >
                           Open slides
                           <ArrowUpRight

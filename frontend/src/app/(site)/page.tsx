@@ -87,32 +87,32 @@ export default function HomePage() {
       {/* Abstract. The guidelines ask the home page to introduce the project
           in abstract, concisely — so it is set once, as prose, and the detail
           lives on the Domain tab. */}
-      <Section id="abstract" className="py-20 sm:py-24">
+      <Section id="abstract" className="py-section lg:py-section-lg">
         <Container>
           <div className="grid gap-8 lg:grid-cols-12 lg:gap-16">
             <div className="lg:col-span-4">
               <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
                 <span className="lp-index">00</span>
-                <span className="font-mono text-[0.6875rem] uppercase tracking-[0.18em] text-slate-400">
+                <span className="lp-label text-slate-400">
                   Abstract
                 </span>
               </div>
               <h2
                 id="abstract-heading"
-                className="mt-8 font-display text-[1.75rem] font-bold leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2rem]"
+                className="mt-8 font-display text-title font-bold leading-[1.12] tracking-heading text-ink sm:text-display-sm"
               >
                 The gap this closes.
               </h2>
             </div>
 
             <div className="lg:col-span-8">
-              <p className="text-[1.0625rem] leading-[1.75] text-slate-600 sm:text-lg">
+              <p className="text-lead leading-[1.75] text-slate-600 sm:text-lg">
                 {PROJECT_ABSTRACT}
               </p>
 
               <Link
                 href="/domain"
-                className="lp-focus group mt-8 inline-flex min-h-touch items-center gap-2 border-b border-ink/20 text-[0.9375rem] font-semibold text-ink transition-colors hover:border-gold ring-offset-white"
+                className="lp-focus group mt-8 inline-flex min-h-touch items-center gap-2 border-b border-ink/20 text-body font-semibold text-ink transition-colors hover:border-gold ring-offset-white"
               >
                 Read the full research domain
                 <ArrowRight
@@ -128,7 +128,7 @@ export default function HomePage() {
       <EngineBento />
 
       {/* Pointer to the rest of the site. */}
-      <Section id="next" tone="ink" className="py-20 sm:py-24">
+      <Section id="next" tone="ink" className="py-section lg:py-section-lg">
         <Container>
           <SectionMasthead
             id="next"
@@ -167,11 +167,11 @@ export default function HomePage() {
                 href={card.href}
                 className="lp-focus group flex min-h-[9rem] flex-col justify-between bg-ink p-6 transition-colors hover:bg-ink-light ring-offset-ink"
               >
-                <h3 className="font-display text-base font-bold tracking-[-0.01em] text-white">
+                <h3 className="font-display text-base font-bold tracking-snug text-white">
                   {card.title}
                 </h3>
                 <div>
-                  <p className="text-[0.8125rem] leading-snug text-slate-400">
+                  <p className="text-caption leading-snug text-slate-400">
                     {card.detail}
                   </p>
                   <ArrowRight

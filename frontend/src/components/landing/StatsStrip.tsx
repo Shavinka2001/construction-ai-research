@@ -61,14 +61,14 @@ function StatItem({
 
   return (
     <div>
-      <dd className="font-mono text-[1.125rem] font-medium tabular-nums leading-none tracking-tight text-white">
+      <dd className="font-mono text-heading font-medium tabular-nums leading-none tracking-heading text-white">
         {stat.prefix}
         {value.toFixed(decimals)}
         <span className="text-gold">{stat.suffix}</span>
       </dd>
       <dt
         title={stat.provenance}
-        className="mt-2 cursor-help text-[0.75rem] leading-snug text-slate-500"
+        className="mt-2 cursor-help text-micro leading-snug text-slate-500"
       >
         {stat.label}
       </dt>

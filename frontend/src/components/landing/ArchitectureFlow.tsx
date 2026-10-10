@@ -48,7 +48,7 @@ export function ArchitectureFlow() {
   };
 
   return (
-    <Section id="architecture" tone="ink" className="py-20 sm:py-24 lg:py-28">
+    <Section id="architecture" tone="ink" className="py-section lg:py-section-lg">
       <Container>
         <SectionMasthead
           id="architecture"
@@ -65,10 +65,10 @@ export function ArchitectureFlow() {
             {NODES_BY_LAYER.map(({ layer, nodes }, columnIndex) => (
               <div key={layer}>
                 <div className="flex items-baseline gap-2.5 border-b border-white/10 pb-3">
-                  <span className="font-mono text-[0.625rem] tabular-nums text-gold">
+                  <span className="font-mono text-label-sm tabular-nums text-gold">
                     {String(columnIndex + 1).padStart(2, "0")}
                   </span>
-                  <h3 className="font-mono text-[0.625rem] uppercase tracking-[0.18em] text-slate-500">
+                  <h3 className="lp-label text-slate-500">
                     {LAYER_LABELS[layer]}
                   </h3>
                 </div>
@@ -103,13 +103,13 @@ export function ArchitectureFlow() {
                           <span className="min-w-0 flex-1">
                             <span
                               className={cn(
-                                "block truncate text-[0.875rem] font-semibold transition-colors",
+                                "block truncate text-body-sm font-semibold transition-colors",
                                 isActive ? "text-gold" : "text-white"
                               )}
                             >
                               {node.label}
                             </span>
-                            <span className="mt-0.5 block text-[0.75rem] leading-snug text-slate-500">
+                            <span className="mt-0.5 block text-micro leading-snug text-slate-500">
                               {node.role}
                             </span>
                           </span>
@@ -135,19 +135,19 @@ export function ArchitectureFlow() {
                 <tr className="border-y border-white/10">
                   <th
                     scope="col"
-                    className="py-3 pr-6 font-mono text-[0.625rem] font-medium uppercase tracking-[0.16em] text-slate-500"
+                    className="py-3 pr-6 font-mono text-label-sm font-medium uppercase tracking-label text-slate-500"
                   >
                     From
                   </th>
                   <th
                     scope="col"
-                    className="py-3 pr-6 font-mono text-[0.625rem] font-medium uppercase tracking-[0.16em] text-slate-500"
+                    className="py-3 pr-6 font-mono text-label-sm font-medium uppercase tracking-label text-slate-500"
                   >
                     Payload
                   </th>
                   <th
                     scope="col"
-                    className="py-3 font-mono text-[0.625rem] font-medium uppercase tracking-[0.16em] text-slate-500"
+                    className="py-3 font-mono text-label-sm font-medium uppercase tracking-label text-slate-500"
                   >
                     To
                   </th>
@@ -167,16 +167,16 @@ export function ArchitectureFlow() {
                     <th
                       scope="row"
                       className={cn(
-                        "whitespace-nowrap py-3.5 pr-6 text-[0.8125rem] font-semibold transition-colors",
+                        "whitespace-nowrap py-3.5 pr-6 text-caption font-semibold transition-colors",
                         activeId === node.id ? "text-gold" : "text-white"
                       )}
                     >
                       {node.label}
                     </th>
-                    <td className="py-3.5 pr-6 text-[0.8125rem] leading-snug text-slate-400">
+                    <td className="py-3.5 pr-6 text-caption leading-snug text-slate-400">
                       {node.payload}
                     </td>
-                    <td className="py-3.5 font-mono text-[0.75rem] leading-snug text-slate-500">
+                    <td className="py-3.5 font-mono text-micro leading-snug text-slate-500">
                       {node.flowsTo.length > 0
                         ? node.flowsTo.map(nodeLabel).join(", ")
                         : "—"}

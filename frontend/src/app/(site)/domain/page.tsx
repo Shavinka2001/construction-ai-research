@@ -36,7 +36,7 @@ export default function DomainPage() {
         lede="What has already been published, where it stops, the problem that leaves open, and how this project answers it."
       />
 
-      <Section id="domain" className="py-16 sm:py-20">
+      <Section id="domain" className="py-section lg:py-section-lg">
         <Container>
           <div className="grid gap-12 lg:grid-cols-12 lg:gap-16">
             {/* Contents rail. */}
@@ -44,7 +44,7 @@ export default function DomainPage() {
               aria-label="On this page"
               className="lg:col-span-3 lg:sticky lg:top-28 lg:self-start"
             >
-              <p className="font-mono text-[0.625rem] uppercase tracking-[0.18em] text-slate-400">
+              <p className="lp-label text-slate-400">
                 On this page
               </p>
               <ul className="mt-4 space-y-2.5 border-l border-slate-200 pl-4">
@@ -52,7 +52,7 @@ export default function DomainPage() {
                   <li key={item.href}>
                     <a
                       href={item.href}
-                      className="lp-focus text-[0.8125rem] text-slate-500 transition-colors hover:text-ink ring-offset-white"
+                      className="lp-focus text-caption text-slate-500 transition-colors hover:text-ink ring-offset-white"
                     >
                       {item.label}
                     </a>
@@ -77,7 +77,7 @@ export default function DomainPage() {
                       </span>
                       <h2
                         id={`${section.id}-heading`}
-                        className="font-display text-xl font-bold tracking-[-0.02em] text-ink sm:text-2xl"
+                        className="font-display text-xl font-bold tracking-heading text-ink sm:text-2xl"
                       >
                         {section.title}
                       </h2>
@@ -87,7 +87,7 @@ export default function DomainPage() {
                       {section.body.map((paragraph) => (
                         <p
                           key={paragraph.slice(0, 40)}
-                          className="text-[0.9375rem] leading-[1.75] text-slate-600 sm:text-base"
+                          className="text-body leading-[1.75] text-slate-600 sm:text-base"
                         >
                           {paragraph}
                         </p>
@@ -98,10 +98,10 @@ export default function DomainPage() {
                       <ol className="mt-7 max-w-2xl space-y-3 border-t border-slate-200 pt-6">
                         {section.points.map((point, pointIndex) => (
                           <li key={point.slice(0, 40)} className="flex gap-4">
-                            <span className="mt-0.5 shrink-0 font-mono text-[0.6875rem] tabular-nums text-gold">
+                            <span className="mt-0.5 shrink-0 font-mono text-label tabular-nums text-gold">
                               {String(pointIndex + 1).padStart(2, "0")}
                             </span>
-                            <span className="text-[0.9375rem] leading-[1.7] text-slate-600">
+                            <span className="text-body leading-[1.7] text-slate-600">
                               {point}
                             </span>
                           </li>
@@ -126,13 +126,13 @@ export default function DomainPage() {
                     </span>
                     <h2
                       id="methodology-heading"
-                      className="font-display text-xl font-bold tracking-[-0.02em] text-ink sm:text-2xl"
+                      className="font-display text-xl font-bold tracking-heading text-ink sm:text-2xl"
                     >
                       Methodology
                     </h2>
                   </div>
 
-                  <p className="mt-6 max-w-2xl text-[0.9375rem] leading-[1.75] text-slate-600 sm:text-base">
+                  <p className="mt-6 max-w-2xl text-body leading-[1.75] text-slate-600 sm:text-base">
                     The pipeline runs in order. Each phase consumes the output
                     of the one before it, so a failure is isolated to a stage
                     rather than to the system.
@@ -145,14 +145,14 @@ export default function DomainPage() {
                         className="grid gap-2 border-b border-slate-200 py-5 sm:grid-cols-12 sm:gap-6"
                       >
                         <div className="flex items-baseline gap-3 sm:col-span-4">
-                          <span className="font-mono text-[0.6875rem] tabular-nums text-gold">
+                          <span className="font-mono text-label tabular-nums text-gold">
                             {String(index + 1).padStart(2, "0")}
                           </span>
-                          <h3 className="text-[0.9375rem] font-semibold text-ink">
+                          <h3 className="text-body font-semibold text-ink">
                             {phase.name}
                           </h3>
                         </div>
-                        <p className="text-[0.875rem] leading-[1.7] text-slate-600 sm:col-span-8">
+                        <p className="text-body-sm leading-[1.7] text-slate-600 sm:col-span-8">
                           {phase.detail}
                         </p>
                       </li>

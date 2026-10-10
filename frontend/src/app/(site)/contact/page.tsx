@@ -24,12 +24,12 @@ export default function ContactPage() {
         lede="General enquiries about the research, requests for documents, or questions about the platform."
       />
 
-      <Section id="contact" className="py-16 sm:py-20">
+      <Section id="contact" className="py-section lg:py-section-lg">
         <Container>
           <div className="grid gap-14 lg:grid-cols-12 lg:gap-16">
             {/* Directory. */}
             <div className="lg:col-span-5">
-              <h2 className="font-mono text-[0.625rem] uppercase tracking-[0.18em] text-slate-400">
+              <h2 className="lp-label text-slate-400">
                 General contacts
               </h2>
 
@@ -39,13 +39,13 @@ export default function ContactPage() {
                     key={channel.label}
                     className="flex flex-col gap-1 border-b border-slate-200 py-4 sm:flex-row sm:items-baseline sm:gap-6"
                   >
-                    <dt className="font-mono text-[0.625rem] uppercase tracking-[0.14em] text-slate-400 sm:w-32 sm:shrink-0">
+                    <dt className="lp-label text-slate-400 sm:w-32 sm:shrink-0">
                       {channel.label}
                     </dt>
                     <dd>
                       <a
                         href={channel.href}
-                        className="lp-focus font-mono text-[0.875rem] text-ink underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:decoration-gold ring-offset-white"
+                        className="lp-focus font-mono text-body-sm text-ink underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:decoration-gold ring-offset-white"
                       >
                         {channel.value}
                       </a>
@@ -55,7 +55,7 @@ export default function ContactPage() {
               </dl>
 
               {/* Per-member addresses. */}
-              <h2 className="mt-12 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-slate-400">
+              <h2 className="mt-12 lp-label text-slate-400">
                 Researchers
               </h2>
 
@@ -65,17 +65,17 @@ export default function ContactPage() {
                     key={member.id}
                     className="flex flex-col gap-1 border-b border-slate-200 py-4 sm:flex-row sm:items-baseline sm:gap-6"
                   >
-                    <dt className="text-[0.875rem] font-semibold text-ink sm:w-32 sm:shrink-0">
+                    <dt className="text-body-sm font-semibold text-ink sm:w-32 sm:shrink-0">
                       {member.name}
                     </dt>
                     <dd className="min-w-0">
                       <a
                         href={`mailto:${member.email}`}
-                        className="lp-focus break-all font-mono text-[0.8125rem] text-slate-600 underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-gold ring-offset-white"
+                        className="lp-focus break-all font-mono text-caption text-slate-600 underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-gold ring-offset-white"
                       >
                         {member.email}
                       </a>
-                      <span className="mt-0.5 block font-mono text-[0.625rem] uppercase tracking-[0.12em] text-slate-400">
+                      <span className="mt-0.5 block lp-label text-slate-400">
                         {member.componentLabel}
                       </span>
                     </dd>
@@ -84,10 +84,10 @@ export default function ContactPage() {
               </dl>
 
               {/* Postal address. */}
-              <h2 className="mt-12 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-slate-400">
+              <h2 className="mt-12 lp-label text-slate-400">
                 Department
               </h2>
-              <address className="mt-4 not-italic text-[0.875rem] leading-[1.8] text-slate-600">
+              <address className="mt-4 not-italic text-body-sm leading-[1.8] text-slate-600">
                 {DEPARTMENT_ADDRESS.map((line) => (
                   <span key={line} className="block">
                     {line}
@@ -95,7 +95,7 @@ export default function ContactPage() {
                 ))}
               </address>
 
-              <p className="mt-6 text-[0.8125rem] leading-relaxed text-slate-500">
+              <p className="mt-6 text-caption leading-relaxed text-slate-500">
                 For matters concerning assessment or supervision, please contact{" "}
                 {SUPERVISORS[0]?.name ?? "the supervisor"} directly.
               </p>
@@ -103,10 +103,10 @@ export default function ContactPage() {
 
             {/* Message template. */}
             <div className="lg:col-span-7">
-              <h2 className="font-mono text-[0.625rem] uppercase tracking-[0.18em] text-slate-400">
+              <h2 className="lp-label text-slate-400">
                 Message template
               </h2>
-              <p className="mt-3 max-w-xl text-[0.9375rem] leading-[1.7] text-slate-600">
+              <p className="mt-3 max-w-xl text-body leading-[1.7] text-slate-600">
                 Fill this in and it will open in your own mail application,
                 already addressed and formatted.
               </p>

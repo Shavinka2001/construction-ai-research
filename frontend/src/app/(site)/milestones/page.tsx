@@ -19,7 +19,7 @@ export default function MilestonesPage() {
         lede="Each assessment in the project, what it covers, when it falls and how much it carries toward the module grade."
       />
 
-      <Section id="milestones" className="py-16 sm:py-20">
+      <Section id="milestones" className="py-section lg:py-section-lg">
         <Container>
           <MilestoneExplorer />
         </Container>

@@ -41,6 +41,46 @@ module.exports = {
         display: ["var(--font-display)", "var(--font-inter)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
       },
+      /**
+       * Type scale for the public site.
+       *
+       * Seven steps, each carrying its own leading. Display steps are set
+       * tight because they only ever run at large sizes; reading steps are set
+       * loose. Components use these names rather than arbitrary rem values, so
+       * the scale can be retuned in one place.
+       */
+      fontSize: {
+        "display-xl": ["4.25rem", { lineHeight: "1.0" }],
+        "display-lg": ["3.5rem", { lineHeight: "1.04" }],
+        display: ["2.5rem", { lineHeight: "1.08" }],
+        "display-sm": ["2.125rem", { lineHeight: "1.1" }],
+        title: ["1.75rem", { lineHeight: "1.18" }],
+        "title-sm": ["1.375rem", { lineHeight: "1.25" }],
+        heading: ["1.125rem", { lineHeight: "1.35" }],
+        lead: ["1.1875rem", { lineHeight: "1.55" }],
+        body: ["0.9375rem", { lineHeight: "1.65" }],
+        "body-sm": ["0.875rem", { lineHeight: "1.6" }],
+        caption: ["0.8125rem", { lineHeight: "1.55" }],
+        micro: ["0.75rem", { lineHeight: "1.5" }],
+        label: ["0.6875rem", { lineHeight: "1.4" }],
+        "label-sm": ["0.625rem", { lineHeight: "1.3" }],
+        "label-xs": ["0.5625rem", { lineHeight: "1.3" }],
+      },
+      /**
+       * Kept separate from fontSize so a size can be reused untracked.
+       *
+       * Names are deliberately distinct from Tailwind's own `tight` /
+       * `tighter`, which the dashboard and auth screens already use — those
+       * keep their stock values.
+       */
+      letterSpacing: {
+        display: "-0.035em",
+        title: "-0.028em",
+        heading: "-0.02em",
+        snug: "-0.012em",
+        label: "0.16em",
+        "label-wide": "0.18em",
+      },
       minHeight: {
         touch: "48px",
       },
@@ -49,9 +89,18 @@ module.exports = {
       },
       spacing: {
         "safe-bottom": "env(safe-area-inset-bottom, 0px)",
+        /** One vertical rhythm for every section band. */
+        section: "5rem",
+        "section-lg": "7rem",
       },
       maxWidth: {
         shell: "80rem",
+        /** Comfortable measure for running prose, ~70 characters. */
+        prose: "38rem",
+      },
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "out-quint": "cubic-bezier(0.22, 1, 0.36, 1)",
       },
       boxShadow: {
         luxury: "0 4px 24px -4px rgba(30, 30, 36, 0.08)",

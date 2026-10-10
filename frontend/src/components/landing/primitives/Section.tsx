@@ -90,7 +90,7 @@ export function SectionMasthead({
         <span className="lp-index">{index}</span>
         <span
           className={cn(
-            "font-mono text-[0.6875rem] uppercase tracking-[0.18em]",
+            "lp-label",
             isInk ? "text-slate-500" : "text-slate-400"
           )}
         >
@@ -102,7 +102,7 @@ export function SectionMasthead({
         <h2
           id={`${id}-heading`}
           className={cn(
-            "max-w-xl font-display text-[1.75rem] font-bold leading-[1.12] tracking-[-0.02em] sm:text-[2.125rem] lg:text-[2.5rem]",
+            "max-w-xl font-display text-title font-bold leading-[1.12] tracking-heading sm:text-display-sm lg:text-display",
             isInk ? "text-white" : "text-ink"
           )}
         >
@@ -112,7 +112,7 @@ export function SectionMasthead({
         {lede ? (
           <div
             className={cn(
-              "max-w-xl self-end text-[0.9375rem] leading-[1.7] sm:text-base",
+              "max-w-xl self-end text-body leading-[1.7] sm:text-base",
               isInk ? "text-slate-400" : "text-slate-500"
             )}
           >

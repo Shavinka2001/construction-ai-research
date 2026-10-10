@@ -89,7 +89,7 @@ export function Hero() {
         <div className="max-w-[46rem]">
           <h1
             id="hero-heading"
-            className="animate-fade-up font-display text-[2.375rem] font-bold leading-[1.02] tracking-[-0.035em] text-white sm:text-[3.5rem] lg:text-[4.25rem]"
+            className="animate-fade-up font-display text-display-sm font-bold leading-[1.02] tracking-display text-white sm:text-display-lg lg:text-display-xl"
           >
             Check the build{" "}
             <span className="text-gold">before you break ground.</span>
@@ -109,7 +109,7 @@ export function Hero() {
           >
             <Link
               href="/login"
-              className="lp-focus group inline-flex min-h-touch items-center justify-center gap-2 bg-gold px-7 text-[0.9375rem] font-bold text-ink transition-colors hover:bg-gold-light ring-offset-ink"
+              className="lp-focus group inline-flex min-h-touch items-center justify-center gap-2 bg-gold px-7 text-body font-bold text-ink transition-colors hover:bg-gold-light ring-offset-ink"
             >
               Open the platform
               <ArrowRight
@@ -120,7 +120,7 @@ export function Hero() {
 
             <Link
               href="/domain"
-              className="lp-focus group inline-flex min-h-touch items-center gap-2 text-[0.9375rem] font-medium text-slate-400 transition-colors hover:text-white ring-offset-ink"
+              className="lp-focus group inline-flex min-h-touch items-center gap-2 text-body font-medium text-slate-400 transition-colors hover:text-white ring-offset-ink"
             >
               Read the research
               <ArrowRight

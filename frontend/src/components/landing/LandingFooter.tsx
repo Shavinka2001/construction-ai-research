@@ -23,21 +23,21 @@ export function LandingFooter() {
             <div className="flex items-center gap-2.5">
               <span
                 aria-hidden
-                className="grid h-8 w-8 place-items-center bg-gold font-display text-[0.8125rem] font-bold text-ink"
+                className="grid h-8 w-8 place-items-center bg-gold font-display text-caption font-bold text-ink"
               >
                 CA
               </span>
               <div className="leading-none">
-                <p className="font-display text-[0.9375rem] font-bold tracking-[-0.01em] text-white">
+                <p className="font-display text-body font-bold tracking-snug text-white">
                   {PROJECT_TITLE}
                 </p>
-                <p className="mt-1 font-mono text-[0.5625rem] uppercase tracking-[0.18em] text-slate-500">
+                <p className="mt-1 font-mono text-label-xs uppercase tracking-label-wide text-slate-500">
                   Research project
                 </p>
               </div>
             </div>
 
-            <p className="mt-5 max-w-sm text-[0.8125rem] leading-relaxed">
+            <p className="mt-5 max-w-sm text-caption leading-relaxed">
               Intelligent AI-driven pre-construction feasibility analyzer.
               Submitted as an undergraduate research project at{" "}
               {INSTITUTION.university}.
@@ -47,7 +47,7 @@ export function LandingFooter() {
               href={REPOSITORY_URL}
               target="_blank"
               rel="noreferrer noopener"
-              className="lp-focus mt-6 inline-flex min-h-touch items-center gap-2 border border-white/15 px-4 font-mono text-[0.75rem] text-slate-300 transition-colors hover:bg-white/5 ring-offset-ink"
+              className="lp-focus mt-6 inline-flex min-h-touch items-center gap-2 border border-white/15 px-4 font-mono text-micro text-slate-300 transition-colors hover:bg-white/5 ring-offset-ink"
             >
               <Github aria-hidden className="h-4 w-4" />
               Source repository
@@ -55,7 +55,7 @@ export function LandingFooter() {
           </div>
 
           <nav aria-label="Site sections">
-            <h2 className="font-mono text-[0.625rem] uppercase tracking-[0.18em] text-gold">
+            <h2 className="lp-label text-gold">
               Pages
             </h2>
             <ul className="mt-4 space-y-2.5">
@@ -63,7 +63,7 @@ export function LandingFooter() {
                 <li key={tab.href}>
                   <Link
                     href={tab.href}
-                    className="lp-focus text-[0.8125rem] transition-colors hover:text-white ring-offset-ink"
+                    className="lp-focus text-caption transition-colors hover:text-white ring-offset-ink"
                   >
                     {tab.label}
                   </Link>
@@ -73,7 +73,7 @@ export function LandingFooter() {
           </nav>
 
           <nav aria-label="Research components">
-            <h2 className="font-mono text-[0.625rem] uppercase tracking-[0.18em] text-gold">
+            <h2 className="lp-label text-gold">
               Components
             </h2>
             <ul className="mt-4 space-y-2.5">
@@ -81,7 +81,7 @@ export function LandingFooter() {
                 <li key={engine.id}>
                   <Link
                     href={engine.href}
-                    className="lp-focus text-[0.8125rem] leading-snug transition-colors hover:text-white ring-offset-ink"
+                    className="lp-focus text-caption leading-snug transition-colors hover:text-white ring-offset-ink"
                   >
                     {engine.title}
                   </Link>
@@ -91,7 +91,7 @@ export function LandingFooter() {
           </nav>
 
           <nav aria-label="Platform">
-            <h2 className="font-mono text-[0.625rem] uppercase tracking-[0.18em] text-gold">
+            <h2 className="lp-label text-gold">
               Platform
             </h2>
             <ul className="mt-4 space-y-2.5">
@@ -99,7 +99,7 @@ export function LandingFooter() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="lp-focus text-[0.8125rem] transition-colors hover:text-white ring-offset-ink"
+                    className="lp-focus text-caption transition-colors hover:text-white ring-offset-ink"
                   >
                     {link.label}
                   </Link>
@@ -109,9 +109,9 @@ export function LandingFooter() {
           </nav>
         </div>
 
-        <div className="mt-12 space-y-3 border-t border-white/10 pt-8 text-[0.75rem] leading-relaxed text-slate-500">
+        <div className="mt-12 space-y-3 border-t border-white/10 pt-8 text-micro leading-relaxed text-slate-500">
           <p>
-            <span className="font-mono uppercase tracking-[0.12em] text-slate-400">
+            <span className="font-mono uppercase tracking-label text-slate-400">
               Academic disclaimer.{" "}
             </span>
             This platform is an undergraduate research prototype. Its outputs —
@@ -131,7 +131,7 @@ export function LandingFooter() {
           </p>
         </div>
 
-        <div className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-6 text-[0.75rem] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-6 text-micro sm:flex-row sm:items-center sm:justify-between">
           <p>
             &copy; {year} Construction AI Research Group. All rights reserved.
           </p>

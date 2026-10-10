@@ -15,7 +15,7 @@ import { NOVELTY_CLAIMS } from "@/components/landing/data/novelty";
  */
 export function ResearchNovelty() {
   return (
-    <Section id="novelty" className="py-20 sm:py-24 lg:py-28">
+    <Section id="novelty" className="py-section lg:py-section-lg">
       <Container>
         <SectionMasthead
           id="novelty"
@@ -41,7 +41,7 @@ export function ResearchNovelty() {
                       <Icon aria-hidden className="h-4 w-4 text-slate-300" />
                     </div>
 
-                    <h3 className="mt-4 max-w-sm font-display text-lg font-bold leading-snug tracking-[-0.015em] text-ink sm:text-xl">
+                    <h3 className="mt-4 max-w-sm font-display text-lg font-bold leading-snug tracking-snug text-ink sm:text-xl">
                       {claim.title}
                     </h3>
                   </header>
@@ -49,29 +49,29 @@ export function ResearchNovelty() {
                   <div className="lg:col-span-8">
                     <div className="grid gap-8 sm:grid-cols-2 sm:gap-10">
                       <div>
-                        <p className="font-mono text-[0.625rem] uppercase tracking-[0.16em] text-slate-400">
+                        <p className="lp-label text-slate-400">
                           Where it stands
                         </p>
-                        <p className="mt-3 text-[0.875rem] leading-[1.7] text-slate-500">
+                        <p className="mt-3 text-body-sm leading-[1.7] text-slate-500">
                           {claim.priorArt}
                         </p>
                       </div>
 
                       <div className="border-l-2 border-gold pl-5 sm:pl-6">
-                        <p className="font-mono text-[0.625rem] uppercase tracking-[0.16em] text-ink">
+                        <p className="lp-label text-ink">
                           What this adds
                         </p>
-                        <p className="mt-3 text-[0.875rem] leading-[1.7] text-ink">
+                        <p className="mt-3 text-body-sm leading-[1.7] text-ink">
                           {claim.contribution}
                         </p>
                       </div>
                     </div>
 
                     <p className="mt-8 border-t border-slate-200 pt-4">
-                      <span className="font-mono text-[0.625rem] uppercase tracking-[0.16em] text-slate-400">
+                      <span className="lp-label text-slate-400">
                         Source{" "}
                       </span>
-                      <code className="ml-1 break-words font-mono text-[0.75rem] leading-relaxed text-slate-600">
+                      <code className="ml-1 break-words font-mono text-micro leading-relaxed text-slate-600">
                         {claim.evidence}
                       </code>
                     </p>

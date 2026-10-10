@@ -138,3 +138,51 @@ carrying a link to it. Confirm that arrangement with the supervisor before
 submission. If it has to be uploaded to the course web instead, add
 `output: "export"` to `next.config.js` to emit static HTML, CSS and JS, and
 drop the WebGL hero to stay inside the size limit.
+
+## Design system
+
+The site uses named tokens from `tailwind.config.js`, not arbitrary values.
+Before this was enforced there were 18 distinct font sizes and 11 letter-spacing
+values across the components; there are now seven type steps and six tracking
+steps. If you reach for `text-[0.8125rem]`, use `text-caption` instead — and if
+nothing fits, add a step to the scale rather than a one-off.
+
+**Type** — each step carries its own leading:
+
+| Token | Size | Use |
+| --- | --- | --- |
+| `text-display-xl` … `text-display-sm` | 4.25 → 2.125rem | Hero and page titles |
+| `text-title`, `text-title-sm` | 1.75, 1.375rem | Section headings |
+| `text-heading` | 1.125rem | Card and row headings |
+| `text-lead` | 1.1875rem | Section ledes |
+| `text-body`, `text-body-sm` | 0.9375, 0.875rem | Running copy |
+| `text-caption`, `text-micro` | 0.8125, 0.75rem | Secondary copy |
+| `text-label`, `text-label-sm`, `text-label-xs` | 0.6875 → 0.5625rem | Uppercase labels |
+
+**Tracking** — `tracking-display`, `tracking-title`, `tracking-heading`,
+`tracking-snug` for tightening; `tracking-label`, `tracking-label-wide` for
+uppercase. These names deliberately avoid Tailwind's own `tight` / `tighter`,
+which the dashboard and auth screens use and which keep their stock values.
+
+**Rhythm** — every section band is `py-section lg:py-section-lg` (5rem / 7rem).
+Do not hand-tune one section's padding.
+
+**Utilities** — `lp-label` for an uppercase category label, `lp-index` for a
+hanging section number, `lp-focus` for the focus ring, `lp-grain` / `lp-grid`
+for the hero and page-header grounds.
+
+### Modern CSS in use
+
+All of it degrades cleanly where unsupported:
+
+- `text-wrap: balance` on headings and `pretty` on paragraphs, so headlines
+  break on sense and paragraphs avoid orphans.
+- `animation-timeline: view()` behind `@supports`, which hands scroll reveals
+  to the compositor. Browsers without it keep the `IntersectionObserver` path
+  in `Reveal`, which stays in place either way.
+- `color-scheme: dark` on the site, so native selects, scrollbars and
+  highlights follow the dark ground instead of flashing white.
+- `-webkit-font-smoothing: antialiased`, because Inter renders too heavy on a
+  dark ground at display sizes.
+- `font-variant-numeric: tabular-nums` on tables, definition values and
+  anything monospaced, so figures line up in columns.

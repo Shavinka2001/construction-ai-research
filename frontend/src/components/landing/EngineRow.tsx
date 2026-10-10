@@ -42,7 +42,7 @@ export function EngineRow({
       {/* Index rail. */}
       <div className="lg:col-span-1">
         <div className="flex items-center gap-3 lg:flex-col lg:items-start lg:gap-4">
-          <span className="font-display text-4xl font-bold leading-none tracking-[-0.03em] text-slate-200 lg:text-5xl">
+          <span className="font-display text-4xl font-bold leading-none tracking-display text-slate-200 lg:text-5xl">
             {String(engine.index).padStart(2, "0")}
           </span>
           <Icon
@@ -60,12 +60,12 @@ export function EngineRow({
         )}
       >
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h3 className="font-display text-xl font-bold leading-tight tracking-[-0.02em] text-ink sm:text-2xl">
+          <h3 className="font-display text-xl font-bold leading-tight tracking-heading text-ink sm:text-2xl">
             {engine.title}
           </h3>
           <span
             className={cn(
-              "font-mono text-[0.625rem] uppercase tracking-[0.14em]",
+              "lp-label",
               engine.maturity === "live"
                 ? "text-emerald-brand-dark"
                 : "text-slate-400"
@@ -75,11 +75,11 @@ export function EngineRow({
           </span>
         </div>
 
-        <p className="mt-1.5 font-mono text-[0.6875rem] leading-relaxed text-slate-400">
+        <p className="mt-1.5 font-mono text-label leading-relaxed text-slate-400">
           {engine.academicName}
         </p>
 
-        <p className="mt-5 max-w-xl text-[1.0625rem] leading-[1.6] text-slate-600 sm:text-lg">
+        <p className="mt-5 max-w-xl text-lead leading-[1.6] text-slate-600 sm:text-lg">
           {engine.tagline}
         </p>
 
@@ -87,10 +87,10 @@ export function EngineRow({
         <dl className="mt-8 grid gap-x-10 gap-y-4 sm:grid-cols-2">
           {engine.capabilities.map((capability) => (
             <div key={capability.label}>
-              <dt className="text-[0.8125rem] font-semibold leading-snug text-ink">
+              <dt className="text-caption font-semibold leading-snug text-ink">
                 {capability.label}
               </dt>
-              <dd className="mt-1 text-[0.8125rem] leading-relaxed text-slate-500">
+              <dd className="mt-1 text-caption leading-relaxed text-slate-500">
                 {capability.detail}
               </dd>
             </div>
@@ -99,7 +99,7 @@ export function EngineRow({
 
         <Link
           href={engine.href}
-          className="lp-focus group mt-9 inline-flex min-h-touch items-center gap-2 border-b border-ink/20 text-[0.9375rem] font-semibold text-ink transition-colors hover:border-gold ring-offset-white"
+          className="lp-focus group mt-9 inline-flex min-h-touch items-center gap-2 border-b border-ink/20 text-body font-semibold text-ink transition-colors hover:border-gold ring-offset-white"
         >
           Open in the platform
           <ArrowRight
@@ -131,8 +131,8 @@ export function EngineRow({
               key={metric.label}
               className="flex items-baseline justify-between gap-4 py-2.5"
             >
-              <dt className="text-[0.75rem] text-slate-500">{metric.label}</dt>
-              <dd className="font-mono text-[0.8125rem] font-medium tabular-nums text-ink">
+              <dt className="text-micro text-slate-500">{metric.label}</dt>
+              <dd className="font-mono text-caption font-medium tabular-nums text-ink">
                 {metric.value}
                 {metric.unit ? (
                   <span className="ml-1 text-slate-400">{metric.unit}</span>
@@ -142,7 +142,7 @@ export function EngineRow({
           ))}
         </dl>
 
-        <p className="mt-5 font-mono text-[0.6875rem] leading-relaxed text-slate-400">
+        <p className="mt-5 font-mono text-label leading-relaxed text-slate-400">
           {engine.stack.join("  ·  ")}
         </p>
       </div>

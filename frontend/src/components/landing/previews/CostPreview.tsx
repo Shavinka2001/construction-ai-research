@@ -25,17 +25,17 @@ export function CostPreview() {
       {/* Critical path programme. */}
       <div className="space-y-1.5">
         <div className="flex items-baseline justify-between">
-          <p className="text-[0.5625rem] font-bold uppercase tracking-[0.12em] text-slate-500">
+          <p className="text-label-xs font-bold uppercase tracking-label text-slate-500">
             Critical path programme
           </p>
-          <p className="text-[0.5625rem] font-semibold text-gold-dark">
+          <p className="text-label-xs font-semibold text-gold-dark">
             18 months
           </p>
         </div>
 
         {ACTIVITIES.map((activity) => (
           <div key={activity.label} className="flex items-center gap-2">
-            <span className="w-[4.5rem] shrink-0 truncate text-[0.5625rem] font-semibold text-slate-500">
+            <span className="w-[4.5rem] shrink-0 truncate text-label-xs font-semibold text-slate-500">
               {activity.label}
             </span>
             <span className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-slate-200/70">
@@ -55,7 +55,7 @@ export function CostPreview() {
           </div>
         ))}
 
-        <p className="pt-1 text-[0.5625rem] font-medium text-slate-500">
+        <p className="pt-1 text-label-xs font-medium text-slate-500">
           <span className="font-bold text-gold-dark">Gold</span> marks the
           driving path &mdash; zero float
         </p>
@@ -64,12 +64,12 @@ export function CostPreview() {
       {/* CAPEX chip + 30-year OPEX curve. */}
       <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-white/70 p-3">
         <div>
-          <p className="text-[0.5625rem] font-bold uppercase tracking-[0.12em] text-slate-500">
+          <p className="text-label-xs font-bold uppercase tracking-label text-slate-500">
             Day-one CAPEX
           </p>
           <p className="mt-0.5 font-display text-base font-bold tabular-nums text-ink">
             LKR 15.6
-            <span className="text-[0.625rem] font-semibold text-slate-500">
+            <span className="text-label-sm font-semibold text-slate-500">
               {" "}
               M
             </span>
@@ -77,7 +77,7 @@ export function CostPreview() {
         </div>
 
         <div>
-          <p className="text-[0.5625rem] font-bold uppercase tracking-[0.12em] text-slate-500">
+          <p className="text-label-xs font-bold uppercase tracking-label text-slate-500">
             30-year OPEX
           </p>
           <svg

@@ -125,15 +125,58 @@ body {
 }
 
 /* ==========================================================================
-   Landing page utilities.
-   Only consumed by src/components/landing/**; nothing here targets the
-   dashboard or auth surfaces. Deliberately sparse: the landing page leans on
-   hairline rules, type scale and whitespace rather than cards and glows.
+   Public site (src/app/(site)/** and src/components/landing/**).
+
+   Everything here is scoped to `html[data-landing="true"]`, an attribute set
+   by LandingScrollScope while a site page is mounted, or to the `lp-` prefixed
+   utilities. Nothing reaches the dashboard or auth surfaces.
    ========================================================================== */
 
+html[data-landing="true"] {
+  scroll-behavior: smooth;
+  /* Native form controls, scrollbars and highlights follow the dark ground. */
+  color-scheme: dark;
+}
+
+html[data-landing="true"] body {
+  /* Inter runs heavy on a dark ground at display sizes; smoothing restores the
+     intended weight without faking it with a lighter font-weight. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html[data-landing="true"] ::selection {
+  background: rgba(212, 175, 55, 0.3);
+  color: #fff;
+}
+
+html[data-landing="true"] :target,
+[data-landing-section] {
+  scroll-margin-top: 6rem;
+}
+
+/* Headlines break on sense rather than on measure; body copy avoids orphans.
+   Both degrade to normal wrapping where unsupported. */
+html[data-landing="true"] h1,
+html[data-landing="true"] h2,
+html[data-landing="true"] h3 {
+  text-wrap: balance;
+}
+
+html[data-landing="true"] p {
+  text-wrap: pretty;
+}
+
+/* Figures line up in columns wherever they appear. */
+html[data-landing="true"] table,
+html[data-landing="true"] dd,
+html[data-landing="true"] .font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
 @layer components {
-  /* Fine film grain. Replaces the blurred radial "glow blobs" that make a
-     dark hero look generated — this reads as print stock instead. */
+  /* Fine film grain, in place of blurred colour glows. */
   .lp-grain::after {
     content: "";
     position: absolute;
@@ -143,7 +186,7 @@ body {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
-  /* Drafting grid, used once in the hero rather than behind every section. */
+  /* Drafting grid, used once per page at most. */
   .lp-grid {
     background-image:
       linear-gradient(to right, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
@@ -160,7 +203,6 @@ body {
     );
   }
 
-  /* Frosted panel. Kept for the two dark sections only. */
   .lp-glass {
     background: rgba(255, 255, 255, 0.035);
     backdrop-filter: blur(12px);
@@ -168,33 +210,54 @@ body {
     border: 1px solid rgba(148, 163, 184, 0.14);
   }
 
-  /* Shared focus treatment — gold ring on both ink and slate grounds. */
+  /* One focus treatment for the whole site. */
   .lp-focus {
     @apply outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-gold;
   }
 
   /* Hanging section index, e.g. the "02" beside a section title. */
   .lp-index {
-    @apply font-mono text-xs font-medium tabular-nums text-gold;
+    @apply font-mono text-label font-medium tabular-nums text-gold;
+  }
+
+  /* Uppercase category label. */
+  .lp-label {
+    @apply font-mono text-label-sm uppercase tracking-label-wide;
   }
 }
 
-/* Landing-only smooth scrolling and anchor offsets, scoped by the attribute
-   LandingScrollScope sets while the page is mounted. */
-html[data-landing="true"] {
-  scroll-behavior: smooth;
-}
-
-html[data-landing="true"] :target,
-[data-landing-section] {
-  scroll-margin-top: 5rem;
-}
-
-/* Scroll-reveal hidden state.
-   Gated on `data-landing` so content is only ever hidden while the JavaScript
-   that reveals it is running. */
+/* Scroll-reveal.
+   The hidden state is gated on `data-landing`, which only exists once the
+   client script has run, so without JavaScript nothing is stranded at zero
+   opacity. */
 html[data-landing="true"] [data-reveal="pending"] {
   opacity: 0;
+}
+
+/* Where the browser can drive the reveal from scroll position itself, do that
+   instead of waiting on IntersectionObserver: it runs on the compositor and
+   cannot stutter behind a busy main thread. Browsers without support keep the
+   observer path above, which stays in place either way. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    html[data-landing="true"] [data-reveal] {
+      animation: lp-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 10% cover 28%;
+      opacity: 1;
+    }
+  }
+}
+
+@keyframes lp-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

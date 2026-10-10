@@ -65,15 +65,15 @@ export function SiteNav() {
         >
           <span
             aria-hidden
-            className="grid h-8 w-8 place-items-center bg-gold font-display text-[0.8125rem] font-bold text-ink"
+            className="grid h-8 w-8 place-items-center bg-gold font-display text-caption font-bold text-ink"
           >
             CA
           </span>
           <span className="flex flex-col leading-none">
-            <span className="font-display text-[0.9375rem] font-bold tracking-[-0.01em] text-white">
+            <span className="font-display text-body font-bold tracking-snug text-white">
               {PROJECT_TITLE}
             </span>
-            <span className="mt-1 font-mono text-[0.5625rem] uppercase tracking-[0.18em] text-slate-500">
+            <span className="mt-1 font-mono text-label-xs uppercase tracking-label-wide text-slate-500">
               Research project
             </span>
           </span>
@@ -89,7 +89,7 @@ export function SiteNav() {
                   href={tab.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "lp-focus relative flex h-[4.5rem] items-center px-3.5 text-[0.8125rem] font-medium transition-colors ring-offset-ink xl:px-4",
+                    "lp-focus relative flex h-[4.5rem] items-center px-3.5 text-caption font-medium transition-colors ring-offset-ink xl:px-4",
                     active ? "text-white" : "text-slate-400 hover:text-slate-200"
                   )}
                 >
@@ -110,7 +110,7 @@ export function SiteNav() {
         <div className="flex items-center gap-2">
           <Link
             href="/login"
-            className="lp-focus hidden min-h-touch items-center gap-1.5 bg-gold px-4 text-[0.8125rem] font-bold text-ink transition-colors hover:bg-gold-light ring-offset-ink sm:inline-flex"
+            className="lp-focus hidden min-h-touch items-center gap-1.5 bg-gold px-4 text-caption font-bold text-ink transition-colors hover:bg-gold-light ring-offset-ink sm:inline-flex"
           >
             Platform
             <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
@@ -152,13 +152,13 @@ export function SiteNav() {
                     active ? "text-white" : "text-slate-400"
                   )}
                 >
-                  <span className="flex items-center gap-2 text-[0.9375rem] font-semibold">
+                  <span className="flex items-center gap-2 text-body font-semibold">
                     {active ? (
                       <span aria-hidden className="h-3 w-0.5 bg-gold" />
                     ) : null}
                     {tab.label}
                   </span>
-                  <span className="mt-0.5 text-[0.75rem] leading-snug text-slate-500">
+                  <span className="mt-0.5 text-micro leading-snug text-slate-500">
                     {tab.blurb}
                   </span>
                 </Link>
@@ -168,7 +168,7 @@ export function SiteNav() {
           <li className="py-4">
             <Link
               href="/login"
-              className="lp-focus flex min-h-touch items-center justify-center gap-1.5 bg-gold px-4 text-[0.9375rem] font-bold text-ink ring-offset-ink"
+              className="lp-focus flex min-h-touch items-center justify-center gap-1.5 bg-gold px-4 text-body font-bold text-ink ring-offset-ink"
             >
               Open the platform
               <ArrowUpRight aria-hidden className="h-4 w-4" />
