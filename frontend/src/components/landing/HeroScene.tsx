@@ -121,7 +121,9 @@ function TerrainGrid() {
 export default function HeroScene() {
   return (
     <Canvas
-      camera={{ position: [4.6, 3.4, 5.4], fov: 42 }}
+      // Pulled in and lowered from the original framing: the scene now fills a
+      // tall ambient band beside the copy rather than a short boxed column.
+      camera={{ position: [4.2, 2.8, 4.9], fov: 38 }}
       dpr={[1, 1.5]}
       gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
       style={{ pointerEvents: "none" }}

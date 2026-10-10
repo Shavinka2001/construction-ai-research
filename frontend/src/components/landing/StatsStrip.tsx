@@ -60,15 +60,15 @@ function StatItem({
   const value = mounted ? counted : stat.value;
 
   return (
-    <div className="pt-4">
-      <dd className="font-mono text-[1.375rem] font-medium tabular-nums leading-none tracking-tight text-white sm:text-2xl">
+    <div>
+      <dd className="font-mono text-[1.125rem] font-medium tabular-nums leading-none tracking-tight text-white">
         {stat.prefix}
         {value.toFixed(decimals)}
         <span className="text-gold">{stat.suffix}</span>
       </dd>
       <dt
         title={stat.provenance}
-        className="mt-2.5 cursor-help text-[0.75rem] leading-snug text-slate-500"
+        className="mt-2 cursor-help text-[0.75rem] leading-snug text-slate-500"
       >
         {stat.label}
       </dt>
@@ -113,8 +113,8 @@ export function StatsStrip() {
   }, []);
 
   return (
-    <div ref={ref} className="border-t border-white/15">
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-7 sm:grid-cols-4 sm:gap-x-8">
+    <div ref={ref} className="border-t border-white/10 pt-8">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4 sm:gap-x-10">
         {HERO_STATS.map((stat) => (
           <StatItem
             key={stat.label}

@@ -39,73 +39,102 @@ function useWantsThreeDimensionalScene(): boolean {
   return wants;
 }
 
+/**
+ * Home hero.
+ *
+ * Single column of type with the massing bleeding off the right edge rather
+ * than sitting in a reserved column beside it, so the section reads as one
+ * composition instead of two boxes. The scene is purely ambient: it is behind
+ * the content, masked at both edges, and never carries information.
+ *
+ * Entrance uses CSS animation with no JavaScript gate, so the copy is visible
+ * whether or not hydration happens, and `prefers-reduced-motion` neutralises
+ * it via the rule in globals.css.
+ */
 export function Hero() {
   const showScene = useWantsThreeDimensionalScene();
 
   return (
     <section
       aria-labelledby="hero-heading"
-      className="lp-grain relative isolate overflow-hidden bg-ink pb-16 pt-28 sm:pb-20 sm:pt-36 lg:pb-24 lg:pt-44"
+      className="lp-grain relative isolate overflow-hidden bg-ink pb-14 pt-24 sm:pb-16 sm:pt-32 lg:pb-20 lg:pt-40"
     >
-      <div aria-hidden className="lp-grid lp-grid-mask absolute inset-0 -z-10" />
+      {/* Layered back to front: drafting grid, massing, scrim, content. */}
+      <div aria-hidden className="lp-grid lp-grid-mask absolute inset-0 -z-30" />
 
-      <Container>
-        <div className="grid items-start gap-14 lg:grid-cols-12 lg:gap-10">
-          <div className="lg:col-span-7">
-            {/* Standfirst line instead of a pill badge. */}
-            <p className="flex items-center gap-3 font-mono text-[0.6875rem] uppercase tracking-[0.18em] text-slate-500">
-              <span aria-hidden className="h-px w-8 bg-gold" />
-              Pre-construction intelligence
-            </p>
+      {/* Ambient massing. Runs off the right edge and fades into the ground on
+          both sides, so there is no visible frame around it. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 right-[-8%] -z-20 hidden w-[58%] lg:block"
+        style={{
+          maskImage:
+            "linear-gradient(to right, transparent, #000 30%, #000 74%, transparent)",
+          WebkitMaskImage:
+            "linear-gradient(to right, transparent, #000 30%, #000 74%, transparent)",
+        }}
+      >
+        {showScene ? <HeroScene /> : null}
+      </div>
 
-            <h1
-              id="hero-heading"
-              className="mt-7 max-w-[20ch] font-display text-[2.125rem] font-bold leading-[1.05] tracking-[-0.03em] text-white sm:text-[3rem] lg:text-[3.75rem]"
+      {/* Scrim. The massing is wide enough to pass under the headline on some
+          viewports, so the copy keeps its contrast from this rather than from
+          the scene happening to stay clear of it. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 left-0 -z-10 hidden w-[78%] bg-gradient-to-r from-ink via-ink/85 to-transparent lg:block"
+      />
+
+      <Container className="relative">
+        <div className="max-w-[46rem]">
+          <h1
+            id="hero-heading"
+            className="animate-fade-up font-display text-[2.375rem] font-bold leading-[1.02] tracking-[-0.035em] text-white sm:text-[3.5rem] lg:text-[4.25rem]"
+          >
+            Check the build{" "}
+            <span className="text-gold">before you break ground.</span>
+          </h1>
+
+          <p
+            className="mt-8 max-w-lg animate-fade-up text-lg leading-[1.55] text-slate-400 sm:text-xl"
+            style={{ animationDelay: "90ms" }}
+          >
+            Site, plan, approvals and cost — checked from the drawings you
+            already have.
+          </p>
+
+          <div
+            className="mt-11 flex animate-fade-up flex-col gap-4 sm:flex-row sm:items-center sm:gap-7"
+            style={{ animationDelay: "180ms" }}
+          >
+            <Link
+              href="/login"
+              className="lp-focus group inline-flex min-h-touch items-center justify-center gap-2 bg-gold px-7 text-[0.9375rem] font-bold text-ink transition-colors hover:bg-gold-light ring-offset-ink"
             >
-              Know what a site will cost you{" "}
-              <span className="text-gold">before you own it.</span>
-            </h1>
+              Open the platform
+              <ArrowRight
+                aria-hidden
+                className="h-4 w-4 transition-transform group-hover:translate-x-1"
+              />
+            </Link>
 
-            <p className="mt-7 max-w-xl text-[1.0625rem] leading-[1.65] text-slate-400 sm:text-lg">
-              Most of what goes wrong on a building project was already decided
-              before anyone broke ground: the slope nobody measured, the column
-              that lands in a doorway, the clearance nobody knew was required.
-              This platform checks all of it from the drawings you already have.
-            </p>
-
-            <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-              <Link
-                href="/login"
-                className="lp-focus group inline-flex min-h-touch items-center justify-center gap-2 bg-gold px-7 text-[0.9375rem] font-bold text-ink transition-colors hover:bg-gold-light ring-offset-ink"
-              >
-                Open the platform
-                <ArrowRight
-                  aria-hidden
-                  className="h-4 w-4 transition-transform group-hover:translate-x-1"
-                />
-              </Link>
-
-              <Link
-                href="/domain"
-                className="lp-focus inline-flex min-h-touch items-center justify-center text-[0.9375rem] font-semibold text-slate-300 underline decoration-slate-600 decoration-1 underline-offset-[6px] transition-colors hover:text-white hover:decoration-gold ring-offset-ink"
-              >
-                Read the research domain
-              </Link>
-            </div>
-          </div>
-
-          {/* Scene column. Reserves its box so the hero never reflows when
-              WebGL arrives. */}
-          <div className="relative hidden h-[24rem] lg:col-span-5 lg:block xl:h-[27rem]">
-            {showScene ? (
-              <HeroScene />
-            ) : (
-              <div aria-hidden className="lp-grid h-full w-full opacity-30" />
-            )}
+            <Link
+              href="/domain"
+              className="lp-focus group inline-flex min-h-touch items-center gap-2 text-[0.9375rem] font-medium text-slate-400 transition-colors hover:text-white ring-offset-ink"
+            >
+              Read the research
+              <ArrowRight
+                aria-hidden
+                className="h-3.5 w-3.5 text-gold transition-transform group-hover:translate-x-1"
+              />
+            </Link>
           </div>
         </div>
 
-        <div className="mt-16 sm:mt-20 lg:mt-24">
+        <div
+          className="mt-20 animate-fade-up sm:mt-24 lg:mt-28"
+          style={{ animationDelay: "280ms" }}
+        >
           <StatsStrip />
         </div>
       </Container>
