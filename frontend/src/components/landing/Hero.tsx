@@ -35,13 +35,37 @@ export function Hero() {
       aria-labelledby="hero-heading"
       className="lp-grain relative isolate overflow-hidden bg-ink pb-12 pt-16 sm:pt-20 lg:pb-14 lg:pt-24"
     >
-      <div aria-hidden className="lp-grid lp-grid-mask absolute inset-0 -z-20" />
+      {/* Ground, built in layers so the section reads as atmosphere rather
+          than a flat slab.
 
-      {/* A single soft lift behind the headline, so the centred column sits on
-          something rather than floating on flat ink. */}
+          The vertical pass starts on exactly the nav's colour, so the join
+          between the two is invisible, lifts through the middle where the copy
+          sits, and settles darker at the foot. */}
       <div
         aria-hidden
-        className="absolute left-1/2 top-1/3 -z-10 h-[26rem] w-[44rem] max-w-[130vw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gold/[0.05] blur-[110px]"
+        className="absolute inset-0 -z-30 bg-[linear-gradient(to_bottom,theme(colors.ink.DEFAULT)_0%,theme(colors.ink.light)_48%,theme(colors.ink.deep)_100%)]"
+      />
+
+      {/* Spotlight, centred behind the copy. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 -z-30 bg-[radial-gradient(60%_50%_at_50%_42%,rgba(148,163,184,0.1)_0%,transparent_70%)]"
+      />
+
+      {/* Drafting grid, over the gradient so it picks up the lift. */}
+      <div aria-hidden className="lp-grid lp-grid-mask absolute inset-0 -z-20" />
+
+      {/* A single warm cast behind the headline. */}
+      <div
+        aria-hidden
+        className="absolute left-1/2 top-[38%] -z-10 h-[24rem] w-[46rem] max-w-[130vw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gold/[0.045] blur-[120px]"
+      />
+
+      {/* Hairline along the top edge, catching the light the way a panel does.
+          Keeps the join with the nav deliberate instead of accidental. */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"
       />
 
       {/* Sheet registration marks. */}
