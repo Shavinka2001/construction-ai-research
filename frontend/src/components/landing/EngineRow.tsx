@@ -60,7 +60,7 @@ export function EngineRow({
         )}
       >
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h3 className="font-display text-xl font-bold leading-tight tracking-heading text-ink sm:text-2xl">
+          <h3 className="text-xl font-bold leading-tight tracking-heading text-ink sm:text-2xl">
             {engine.title}
           </h3>
           <span

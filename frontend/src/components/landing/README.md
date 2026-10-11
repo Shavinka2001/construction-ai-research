@@ -75,14 +75,13 @@ Everything is server-rendered and readable. Two specific guards:
 
 ## Performance
 
-The WebGL hero (`HeroScene`) is `next/dynamic` with `ssr: false` and is only
-requested at `lg` and above, and only when `prefers-reduced-motion` is
-`no-preference`. Narrower or motion-sensitive viewports get a static blueprint
-panel. The scene column reserves its box at every breakpoint so the hero never
-reflows when the canvas arrives.
+The home hero is a server component with no illustration, no canvas and no
+client JavaScript of its own. There was a WebGL massing here; it was cut
+because it crowded the first screen rather than earning it. Three.js and
+@react-three/fiber remain in the dependency tree only for the dashboard
+viewers, so the public site no longer pays for them.
 
-`/` builds to roughly 119 kB first-load JS, with Three.js and
-`@react-three/fiber` outside that budget.
+ builds to roughly 100 kB first-load JS.
 
 ## Accessibility
 
@@ -138,6 +137,15 @@ carrying a link to it. Confirm that arrangement with the supervisor before
 submission. If it has to be uploaded to the course web instead, add
 `output: "export"` to `next.config.js` to emit static HTML, CSS and JS, and
 drop the WebGL hero to stay inside the size limit.
+
+## Typefaces
+
+- **Instrument Serif** (`font-display`) — display sizes only. A single regular
+  weight, so anything below `text-title` stays on the sans stack; the sweep
+  that enforced this is why small headings carry no `font-display`.
+- **Inter** (`font-sans`) — body copy, and shared with the dashboard and auth
+  screens, which is why it was left alone.
+- **JetBrains Mono** (`font-mono`) — figures, thresholds, branch names, paths.
 
 ## Design system
 

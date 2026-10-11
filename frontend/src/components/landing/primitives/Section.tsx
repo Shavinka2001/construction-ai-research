@@ -4,12 +4,16 @@ import { cn } from "@/lib/utils";
 export function Container({
   children,
   className,
+  style,
 }: {
   children: React.ReactNode;
   className?: string;
+  /** For one-off values a class cannot carry, such as an animation delay. */
+  style?: React.CSSProperties;
 }) {
   return (
     <div
+      style={style}
       className={cn("mx-auto w-full max-w-shell px-5 sm:px-8 lg:px-12", className)}
     >
       {children}

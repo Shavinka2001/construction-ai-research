@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Sora } from "next/font/google";
+import { Inter, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 // Leaflet's stylesheet is imported once here (not inside the dynamically
 // imported map components) so it ships in the global CSS bundle instead of a
@@ -13,13 +13,19 @@ const inter = Inter({
 });
 
 /**
- * Display face for landing-page headings (`font-display` in Tailwind).
- * Only the weights actually used are requested, and the body copy stays on
- * Inter, so the rest of the app is unaffected.
+ * Display face for the public site (`font-display` in Tailwind).
+ *
+ * A high-contrast serif rather than another geometric sans: it separates this
+ * from the default product-site look and suits an architectural subject. It
+ * ships a single regular weight, which carries at display sizes but reads thin
+ * below them, so smaller headings stay on the sans stack.
+ *
+ * Body copy remains on Inter, so the dashboard and auth screens are unchanged.
  */
-const sora = Sora({
+const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  weight: ["400"],
+  style: ["normal", "italic"],
   variable: "--font-display",
   display: "swap",
 });
@@ -59,7 +65,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${sora.variable} ${jetbrainsMono.variable} h-full`}
+      className={`${inter.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} h-full`}
       suppressHydrationWarning
     >
       <body className="min-h-full font-sans">{children}</body>

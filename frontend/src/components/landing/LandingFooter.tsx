@@ -23,12 +23,12 @@ export function LandingFooter() {
             <div className="flex items-center gap-2.5">
               <span
                 aria-hidden
-                className="grid h-8 w-8 place-items-center bg-gold font-display text-caption font-bold text-ink"
+                className="grid h-8 w-8 place-items-center bg-gold text-caption font-bold text-ink"
               >
                 CA
               </span>
               <div className="leading-none">
-                <p className="font-display text-body font-bold tracking-snug text-white">
+                <p className="text-body font-bold tracking-snug text-white">
                   {PROJECT_TITLE}
                 </p>
                 <p className="mt-1 font-mono text-label-xs uppercase tracking-label-wide text-slate-500">

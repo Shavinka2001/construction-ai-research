@@ -96,7 +96,7 @@ export function MilestoneExplorer() {
           className="mt-8 animate-fade-up border-t-2 border-gold bg-slate-50 p-6 sm:p-8"
         >
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <h2 className="font-display text-xl font-bold tracking-heading text-ink sm:text-2xl">
+            <h2 className="text-xl font-bold tracking-heading text-ink sm:text-2xl">
               {selected.name}
             </h2>
             <span

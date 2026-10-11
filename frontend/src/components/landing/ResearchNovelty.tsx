@@ -41,7 +41,7 @@ export function ResearchNovelty() {
                       <Icon aria-hidden className="h-4 w-4 text-slate-300" />
                     </div>
 
-                    <h3 className="mt-4 max-w-sm font-display text-lg font-bold leading-snug tracking-snug text-ink sm:text-xl">
+                    <h3 className="mt-4 max-w-sm text-lg font-bold leading-snug tracking-snug text-ink sm:text-xl">
                       {claim.title}
                     </h3>
                   </header>

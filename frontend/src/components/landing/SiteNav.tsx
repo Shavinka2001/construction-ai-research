@@ -65,12 +65,12 @@ export function SiteNav() {
         >
           <span
             aria-hidden
-            className="grid h-8 w-8 place-items-center bg-gold font-display text-caption font-bold text-ink"
+            className="grid h-8 w-8 place-items-center bg-gold text-caption font-bold text-ink"
           >
             CA
           </span>
           <span className="flex flex-col leading-none">
-            <span className="font-display text-body font-bold tracking-snug text-white">
+            <span className="text-body font-bold tracking-snug text-white">
               {PROJECT_TITLE}
             </span>
             <span className="mt-1 font-mono text-label-xs uppercase tracking-label-wide text-slate-500">

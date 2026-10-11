@@ -167,7 +167,7 @@ export default function HomePage() {
                 href={card.href}
                 className="lp-focus group flex min-h-[9rem] flex-col justify-between bg-ink p-6 transition-colors hover:bg-ink-light ring-offset-ink"
               >
-                <h3 className="font-display text-base font-bold tracking-snug text-white">
+                <h3 className="text-base font-bold tracking-snug text-white">
                   {card.title}
                 </h3>
                 <div>

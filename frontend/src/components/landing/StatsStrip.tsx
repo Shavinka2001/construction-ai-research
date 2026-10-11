@@ -60,7 +60,7 @@ function StatItem({
   const value = mounted ? counted : stat.value;
 
   return (
-    <div>
+    <div className="text-center">
       <dd className="font-mono text-heading font-medium tabular-nums leading-none tracking-heading text-white">
         {stat.prefix}
         {value.toFixed(decimals)}
@@ -113,7 +113,7 @@ export function StatsStrip() {
   }, []);
 
   return (
-    <div ref={ref} className="border-t border-white/10 pt-8">
+    <div ref={ref} className="mx-auto max-w-3xl border-t border-white/10 pt-8">
       <dl className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4 sm:gap-x-10">
         {HERO_STATS.map((stat) => (
           <StatItem

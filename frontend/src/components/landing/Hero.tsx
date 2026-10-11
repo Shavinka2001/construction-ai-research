@@ -1,120 +1,88 @@
-"use client";
-
 import Link from "next/link";
-import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 
 import { Container } from "@/components/landing/primitives/Section";
 import { StatsStrip } from "@/components/landing/StatsStrip";
 
-/**
- * WebGL is heavy and decorative here, so the scene is split out of the initial
- * bundle and only requested once we know the viewport can use it.
- */
-const HeroScene = dynamic(() => import("@/components/landing/HeroScene"), {
-  ssr: false,
-  loading: () => null,
-});
-
-/**
- * True only on viewports wide enough for the massing to read, and when the
- * visitor has not asked for reduced motion.
- */
-function useWantsThreeDimensionalScene(): boolean {
-  const [wants, setWants] = useState(false);
-
-  useEffect(() => {
-    const query = window.matchMedia(
-      "(min-width: 1024px) and (prefers-reduced-motion: no-preference)"
-    );
-
-    const sync = () => setWants(query.matches);
-    sync();
-
-    query.addEventListener("change", sync);
-    return () => query.removeEventListener("change", sync);
-  }, []);
-
-  return wants;
+/** Corner tick, as found on a drawing sheet. Four of these frame the hero. */
+function RegistrationMark({ className }: { className: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`pointer-events-none absolute h-4 w-4 border-gold/35 ${className}`}
+    />
+  );
 }
 
 /**
  * Home hero.
  *
- * Single column of type with the massing bleeding off the right edge rather
- * than sitting in a reserved column beside it, so the section reads as one
- * composition instead of two boxes. The scene is purely ambient: it is behind
- * the content, masked at both edges, and never carries information.
+ * A centred column of type on a quiet ground — no illustration, no render.
+ * The serif headline carries the section on its own, which is what makes the
+ * first screen feel composed rather than decorated.
  *
- * Entrance uses CSS animation with no JavaScript gate, so the copy is visible
- * whether or not hydration happens, and `prefers-reduced-motion` neutralises
- * it via the rule in globals.css.
+ * Sized against the small viewport unit so mobile browser chrome cannot crop
+ * it, with the figures pinned to the foot. This is a server component: there
+ * is nothing interactive here beyond the two links, and the entrance is plain
+ * CSS, so the copy renders whether or not hydration happens.
+ * `prefers-reduced-motion` neutralises the motion through globals.css.
  */
 export function Hero() {
-  const showScene = useWantsThreeDimensionalScene();
-
   return (
     <section
       aria-labelledby="hero-heading"
-      className="lp-grain relative isolate overflow-hidden bg-ink pb-14 pt-24 sm:pb-16 sm:pt-32 lg:pb-20 lg:pt-40"
+      className="lp-grain relative isolate flex min-h-[80svh] flex-col overflow-hidden bg-ink pb-12 pt-28 sm:pt-32 lg:min-h-[88svh] lg:pb-16 lg:pt-36"
     >
-      {/* Layered back to front: drafting grid, massing, scrim, content. */}
-      <div aria-hidden className="lp-grid lp-grid-mask absolute inset-0 -z-30" />
+      <div aria-hidden className="lp-grid lp-grid-mask absolute inset-0 -z-20" />
 
-      {/* Ambient massing. Runs off the right edge and fades into the ground on
-          both sides, so there is no visible frame around it. */}
+      {/* A single soft lift behind the headline, so the centred column sits on
+          something rather than floating on flat ink. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-[-8%] -z-20 hidden w-[58%] lg:block"
-        style={{
-          maskImage:
-            "linear-gradient(to right, transparent, #000 30%, #000 74%, transparent)",
-          WebkitMaskImage:
-            "linear-gradient(to right, transparent, #000 30%, #000 74%, transparent)",
-        }}
-      >
-        {showScene ? <HeroScene /> : null}
-      </div>
-
-      {/* Scrim. The massing is wide enough to pass under the headline on some
-          viewports, so the copy keeps its contrast from this rather than from
-          the scene happening to stay clear of it. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 left-0 -z-10 hidden w-[78%] bg-gradient-to-r from-ink via-ink/85 to-transparent lg:block"
+        className="absolute left-1/2 top-[38%] -z-10 h-[32rem] w-[48rem] max-w-[120vw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gold/[0.055] blur-[120px]"
       />
 
-      <Container className="relative">
-        <div className="max-w-[46rem]">
+      {/* Sheet registration marks. */}
+      <RegistrationMark className="left-5 top-20 border-l border-t sm:left-8 lg:left-12" />
+      <RegistrationMark className="right-5 top-20 border-r border-t sm:right-8 lg:right-12" />
+      <RegistrationMark className="bottom-6 left-5 border-b border-l sm:left-8 lg:left-12" />
+      <RegistrationMark className="bottom-6 right-5 border-b border-r sm:right-8 lg:right-12" />
+
+      <Container className="relative flex flex-1 items-center">
+        <div className="mx-auto w-full max-w-4xl py-12 text-center lg:py-16">
+          <p className="lp-label animate-fade-up text-slate-500">
+            Pre-construction intelligence
+          </p>
+
           <h1
             id="hero-heading"
-            className="animate-fade-up font-display text-display-sm font-bold leading-[1.02] tracking-display text-white sm:text-display-lg lg:text-display-xl"
+            className="mt-7 animate-fade-up font-display text-display-sm font-normal tracking-display text-white sm:text-display-lg lg:text-display-xl"
+            style={{ animationDelay: "60ms" }}
           >
             Check the build{" "}
-            <span className="text-gold">before you break ground.</span>
+            <em className="not-italic text-gold">before you break ground.</em>
           </h1>
 
           <p
-            className="mt-8 max-w-lg animate-fade-up text-lg leading-[1.55] text-slate-400 sm:text-xl"
-            style={{ animationDelay: "90ms" }}
+            className="mx-auto mt-8 max-w-xl animate-fade-up text-lg leading-[1.6] text-slate-400 sm:text-xl"
+            style={{ animationDelay: "140ms" }}
           >
             Site, plan, approvals and cost — checked from the drawings you
             already have.
           </p>
 
           <div
-            className="mt-11 flex animate-fade-up flex-col gap-4 sm:flex-row sm:items-center sm:gap-7"
-            style={{ animationDelay: "180ms" }}
+            className="mt-12 flex animate-fade-up flex-col items-center justify-center gap-4 sm:flex-row sm:gap-7"
+            style={{ animationDelay: "220ms" }}
           >
             <Link
               href="/login"
-              className="lp-focus group inline-flex min-h-touch items-center justify-center gap-2 bg-gold px-7 text-body font-bold text-ink transition-colors hover:bg-gold-light ring-offset-ink"
+              className="lp-focus group inline-flex min-h-touch w-full items-center justify-center gap-2 bg-gold px-7 text-body font-bold text-ink transition-colors hover:bg-gold-light ring-offset-ink sm:w-auto"
             >
               Open the platform
               <ArrowRight
                 aria-hidden
-                className="h-4 w-4 transition-transform group-hover:translate-x-1"
+                className="h-4 w-4 transition-transform duration-300 ease-out-expo group-hover:translate-x-1"
               />
             </Link>
 
@@ -125,18 +93,19 @@ export function Hero() {
               Read the research
               <ArrowRight
                 aria-hidden
-                className="h-3.5 w-3.5 text-gold transition-transform group-hover:translate-x-1"
+                className="h-3.5 w-3.5 text-gold transition-transform duration-300 ease-out-expo group-hover:translate-x-1"
               />
             </Link>
           </div>
         </div>
+      </Container>
 
-        <div
-          className="mt-20 animate-fade-up sm:mt-24 lg:mt-28"
-          style={{ animationDelay: "280ms" }}
-        >
-          <StatsStrip />
-        </div>
+      {/* Figures, pinned to the foot of the first screen. */}
+      <Container
+        className="relative animate-fade-up"
+        style={{ animationDelay: "320ms" }}
+      >
+        <StatsStrip />
       </Container>
     </section>
   );

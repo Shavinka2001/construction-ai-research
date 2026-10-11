@@ -62,7 +62,7 @@ export function TeamSection() {
                       ) : (
                         <span
                           aria-hidden
-                          className="grid h-14 w-14 shrink-0 place-items-center border border-slate-200 bg-slate-50 font-display text-sm font-bold text-slate-400"
+                          className="grid h-14 w-14 shrink-0 place-items-center border border-slate-200 bg-slate-50 text-sm font-bold text-slate-400"
                         >
                           {monogram(member.name)}
                         </span>
@@ -73,7 +73,7 @@ export function TeamSection() {
                           <span className="font-mono text-label tabular-nums text-gold">
                             {String(index + 1).padStart(2, "0")}
                           </span>
-                          <span className="font-display text-base font-bold tracking-snug text-ink">
+                          <span className="text-base font-bold tracking-snug text-ink">
                             {member.name}
                           </span>
                         </p>

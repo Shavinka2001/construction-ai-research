@@ -67,7 +67,7 @@ export function CostPreview() {
           <p className="text-label-xs font-bold uppercase tracking-label text-slate-500">
             Day-one CAPEX
           </p>
-          <p className="mt-0.5 font-display text-base font-bold tabular-nums text-ink">
+          <p className="mt-0.5 text-base font-bold tabular-nums text-ink">
             LKR 15.6
             <span className="text-label-sm font-semibold text-slate-500">
               {" "}

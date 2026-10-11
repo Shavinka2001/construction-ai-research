@@ -77,7 +77,7 @@ export default function DomainPage() {
                       </span>
                       <h2
                         id={`${section.id}-heading`}
-                        className="font-display text-xl font-bold tracking-heading text-ink sm:text-2xl"
+                        className="text-xl font-bold tracking-heading text-ink sm:text-2xl"
                       >
                         {section.title}
                       </h2>
@@ -126,7 +126,7 @@ export default function DomainPage() {
                     </span>
                     <h2
                       id="methodology-heading"
-                      className="font-display text-xl font-bold tracking-heading text-ink sm:text-2xl"
+                      className="text-xl font-bold tracking-heading text-ink sm:text-2xl"
                     >
                       Methodology
                     </h2>

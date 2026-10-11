@@ -53,7 +53,7 @@ export default function SlidesPage() {
                         {String(index + 1).padStart(2, "0")}
                       </span>
                       <div>
-                        <h2 className="font-display text-lg font-bold tracking-snug text-ink">
+                        <h2 className="text-lg font-bold tracking-snug text-ink">
                           {deck.title}
                         </h2>
                         <p className="mt-1.5 font-mono text-label text-slate-400">
