@@ -196,3 +196,37 @@ All of it degrades cleanly where unsupported:
   dark ground at display sizes.
 - `font-variant-numeric: tabular-nums` on tables, definition values and
   anything monospaced, so figures line up in columns.
+
+## Colour and contrast
+
+Two tones, two palettes. Getting this wrong is silent — the page still looks
+fine to most people — so it is worth stating plainly:
+
+| Ground | Small text | Gold | Emerald |
+| --- | --- | --- | --- |
+| Dark (`bg-ink`, `bg-ink-deep`) | `text-slate-400` (6.96:1). **`slate-500` fails** at 3.75:1 | `text-gold` (8.49:1) | — |
+| Light (white, `slate-50`) | `text-slate-500` (4.76:1). **`slate-400` fails** at 2.56:1 | `text-gold-ink` (4.90:1). **`gold` fails** at 2.10:1 | `text-emerald-ink` (5.48:1). **`emerald-brand` fails** at 2.54:1 |
+
+`gold` and `emerald-brand` remain correct as *fills* — the primary button, a
+tint, a rule — because the text sitting on them is ink. They are wrong as text
+or icon colours on a light ground, where even the 3:1 non-text minimum fails.
+
+Components that span both tones (`SectionMasthead`, `TeamSection`,
+`src/app/(site)/page.tsx`) must branch rather than pick one. `lp-index`
+deliberately sets no colour for this reason.
+
+## Keeping it honest
+
+The checks that found the defects above live in the scratchpad, not the repo,
+but they are worth rebuilding if this page changes much. They drive a headless
+Chrome over all seven routes and assert:
+
+- no horizontal overflow at 390, 768 and 1440;
+- no console errors, and every internal link resolves;
+- one `h1` per page and no skipped heading levels;
+- every pointer target at least 24x24 (WCAG 2.2 SC 2.5.8);
+- every text/background pair at AA, compositing translucent layers properly —
+  a naive check reports phantom failures on tinted backgrounds;
+- the mobile menu opens, locks scroll, closes on Escape and restores scroll;
+  the milestone drop-down and its table stay in sync; the architecture rows
+  dim off the hovered path.

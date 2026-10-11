@@ -37,7 +37,7 @@ export function TeamSection() {
         <Container>
           <h2
             id="team-heading"
-            className="lp-label text-slate-400"
+            className="lp-label text-slate-500"
           >
             Group members
           </h2>
@@ -47,7 +47,7 @@ export function TeamSection() {
               <Reveal as="li" key={member.id}>
                 <article className="grid gap-5 border-b border-slate-200 py-8 sm:grid-cols-12 sm:gap-8 sm:py-10">
                   {/* Identity. */}
-                  <div className="sm:col-span-4">
+                  <div className="min-w-0 sm:col-span-4">
                     <div className="flex items-start gap-4">
                       {member.photo ? (
                         <img
@@ -62,7 +62,7 @@ export function TeamSection() {
                       ) : (
                         <span
                           aria-hidden
-                          className="grid h-14 w-14 shrink-0 place-items-center border border-slate-200 bg-slate-50 text-sm font-bold text-slate-400"
+                          className="grid h-14 w-14 shrink-0 place-items-center border border-slate-200 bg-slate-50 text-sm font-bold text-slate-500"
                         >
                           {monogram(member.name)}
                         </span>
@@ -70,7 +70,7 @@ export function TeamSection() {
 
                       <div className="min-w-0">
                         <p className="flex items-baseline gap-2.5">
-                          <span className="font-mono text-label tabular-nums text-gold">
+                          <span className="font-mono text-label tabular-nums text-gold-ink">
                             {String(index + 1).padStart(2, "0")}
                           </span>
                           <span className="text-base font-bold tracking-snug text-ink">
@@ -79,7 +79,7 @@ export function TeamSection() {
                         </p>
 
                         {member.studentId ? (
-                          <p className="mt-1 font-mono text-label text-slate-400">
+                          <p className="mt-1 font-mono text-label text-slate-500">
                             {member.studentId}
                           </p>
                         ) : null}
@@ -98,22 +98,22 @@ export function TeamSection() {
                   </div>
 
                   {/* Component. */}
-                  <div className="sm:col-span-3">
-                    <p className="lp-label text-slate-400">
+                  <div className="min-w-0 sm:col-span-3">
+                    <p className="lp-label text-slate-500">
                       {member.componentLabel}
                     </p>
                     <p className="mt-2 text-body-sm font-semibold leading-snug text-ink">
                       {member.componentTitle}
                     </p>
                     {member.branch ? (
-                      <p className="mt-2.5 font-mono text-label text-slate-400">
+                      <p className="mt-2.5 font-mono text-label text-slate-500">
                         branch/{member.branch}
                       </p>
                     ) : null}
                   </div>
 
                   {/* Contribution and achievements. */}
-                  <div className="sm:col-span-5">
+                  <div className="min-w-0 sm:col-span-5">
                     <p className="text-caption leading-[1.7] text-slate-600">
                       {member.focusAreas.join(". ")}.
                     </p>
@@ -151,7 +151,7 @@ export function TeamSection() {
       >
         <Container>
           <div className="grid gap-10 sm:grid-cols-12 sm:gap-8">
-            <div className="sm:col-span-4">
+            <div className="min-w-0 sm:col-span-4">
               <h2 className="lp-label text-gold">
                 Supervision
               </h2>
@@ -161,7 +161,7 @@ export function TeamSection() {
                     <p className="text-body font-semibold text-white">
                       {supervisor.name}
                     </p>
-                    <p className="mt-0.5 text-micro text-slate-500">
+                    <p className="mt-0.5 text-micro text-slate-400">
                       {supervisor.title} · {supervisor.role}
                     </p>
                   </li>
@@ -169,7 +169,7 @@ export function TeamSection() {
               </ul>
             </div>
 
-            <div className="sm:col-span-8">
+            <div className="min-w-0 sm:col-span-8">
               <h2 className="lp-label text-gold">
                 Affiliation
               </h2>
@@ -186,7 +186,7 @@ export function TeamSection() {
                     key={label}
                     className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:items-baseline sm:gap-6"
                   >
-                    <dt className="lp-label text-slate-500 sm:w-36 sm:shrink-0">
+                    <dt className="lp-label text-slate-400 sm:w-36 sm:shrink-0">
                       {label}
                     </dt>
                     <dd className="text-body-sm text-slate-300">{value}</dd>

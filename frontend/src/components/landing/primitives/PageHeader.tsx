@@ -33,7 +33,7 @@ export function PageHeader({
       <div aria-hidden className="lp-grid lp-grid-mask absolute inset-0 -z-10" />
 
       <Container>
-        <p className="flex items-center gap-3 lp-label text-slate-500">
+        <p className="flex items-center gap-3 lp-label text-slate-400">
           <span aria-hidden className="h-px w-8 bg-gold" />
           {eyebrow}
         </p>

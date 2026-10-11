@@ -92,8 +92,8 @@ export default function HomePage() {
           <div className="grid gap-8 lg:grid-cols-12 lg:gap-16">
             <div className="lg:col-span-4">
               <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
-                <span className="lp-index">00</span>
-                <span className="lp-label text-slate-400">
+                <span className="lp-index text-gold-ink">00</span>
+                <span className="lp-label text-slate-500">
                   Abstract
                 </span>
               </div>
@@ -105,7 +105,7 @@ export default function HomePage() {
               </h2>
             </div>
 
-            <div className="lg:col-span-8">
+            <div className="min-w-0 lg:col-span-8">
               <p className="text-lead leading-[1.75] text-slate-600 sm:text-lg">
                 {PROJECT_ABSTRACT}
               </p>
@@ -117,7 +117,7 @@ export default function HomePage() {
                 Read the full research domain
                 <ArrowRight
                   aria-hidden
-                  className="h-4 w-4 text-gold transition-transform group-hover:translate-x-1"
+                  className="h-4 w-4 text-gold-ink transition-transform group-hover:translate-x-1"
                 />
               </Link>
             </div>
@@ -176,7 +176,7 @@ export default function HomePage() {
                   </p>
                   <ArrowRight
                     aria-hidden
-                    className="mt-4 h-4 w-4 text-gold transition-transform group-hover:translate-x-1"
+                    className="mt-4 h-4 w-4 text-gold-ink transition-transform group-hover:translate-x-1"
                   />
                 </div>
               </Link>

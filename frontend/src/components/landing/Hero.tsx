@@ -76,7 +76,7 @@ export function Hero() {
 
       <Container className="relative">
         <div className="mx-auto max-w-4xl text-center">
-          <p className="lp-label animate-fade-up text-slate-500">
+          <p className="lp-label animate-fade-up text-slate-400">
             Pre-construction intelligence
           </p>
 

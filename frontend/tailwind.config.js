@@ -22,6 +22,13 @@ module.exports = {
           light: "#E4C65A",
           dark: "#B8942E",
           muted: "rgba(212, 175, 55, 0.15)",
+          /**
+           * Gold dark enough to carry small text on a white ground: 4.90:1,
+           * where the brand gold manages only 2.10:1. Use it for any gold text
+           * on a light section; the brand gold stays for dark sections and for
+           * fills such as the primary button.
+           */
+          ink: "#8A6D1C",
         },
         // "Industrial Luxury" landing palette.
         ink: {
@@ -34,6 +41,8 @@ module.exports = {
           brand: "#10B981",
           "brand-dark": "#059669",
           "brand-muted": "rgba(16, 185, 129, 0.14)",
+          /** 5.48:1 on white, where `brand` manages 2.54:1. For text only. */
+          ink: "#047857",
         },
       },
       fontFamily: {

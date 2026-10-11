@@ -47,10 +47,10 @@ export function EnquiryForm() {
   )}&body=${encodeURIComponent(body)}`;
 
   const fieldClass =
-    "lp-focus mt-2 block min-h-touch w-full border border-slate-300 bg-white px-4 py-3 text-body text-ink placeholder:text-slate-400 ring-offset-white";
+    "lp-focus mt-2 block min-h-touch w-full border border-slate-300 bg-white px-4 py-3 text-body text-ink placeholder:text-slate-500 ring-offset-white";
 
   const labelClass =
-    "lp-label text-slate-400";
+    "lp-label text-slate-500";
 
   return (
     <form
@@ -142,7 +142,7 @@ export function EnquiryForm() {
 
       {/* Preview of exactly what will be handed to the mail client. */}
       <details className="mt-6 border-t border-slate-200 pt-4">
-        <summary className="lp-focus cursor-pointer lp-label text-slate-400 ring-offset-white">
+        <summary className="lp-focus inline-flex min-h-6 cursor-pointer items-center lp-label text-slate-500 ring-offset-white">
           Preview the message
         </summary>
         <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words bg-slate-50 p-4 font-mono text-micro leading-relaxed text-slate-600">

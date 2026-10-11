@@ -48,15 +48,15 @@ export default function SlidesPage() {
                       isPending && "opacity-70"
                     )}
                   >
-                    <div className="flex items-baseline gap-3 sm:col-span-4">
-                      <span className="font-mono text-label tabular-nums text-gold">
+                    <div className="flex min-w-0 items-baseline gap-3 sm:col-span-4">
+                      <span className="font-mono text-label tabular-nums text-gold-ink">
                         {String(index + 1).padStart(2, "0")}
                       </span>
                       <div>
                         <h2 className="text-lg font-bold tracking-snug text-ink">
                           {deck.title}
                         </h2>
-                        <p className="mt-1.5 font-mono text-label text-slate-400">
+                        <p className="mt-1.5 font-mono text-label text-slate-500">
                           {formatDate(deck.date)}
                         </p>
                       </div>
@@ -68,7 +68,7 @@ export default function SlidesPage() {
 
                     <div className="sm:col-span-3 sm:text-right">
                       {isPending ? (
-                        <span className="inline-flex items-center gap-2 lp-label text-slate-400">
+                        <span className="inline-flex items-center gap-2 lp-label text-slate-500">
                           <PresentationIcon aria-hidden className="h-4 w-4" />
                           Not yet presented
                         </span>
@@ -82,7 +82,7 @@ export default function SlidesPage() {
                           Open slides
                           <ArrowUpRight
                             aria-hidden
-                            className="h-4 w-4 text-gold transition-transform group-hover:translate-x-0.5"
+                            className="h-4 w-4 text-gold-ink transition-transform group-hover:translate-x-0.5"
                           />
                         </a>
                       )}

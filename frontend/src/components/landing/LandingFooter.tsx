@@ -31,7 +31,7 @@ export function LandingFooter() {
                 <p className="text-body font-bold tracking-snug text-white">
                   {PROJECT_TITLE}
                 </p>
-                <p className="mt-1 font-mono text-label-xs uppercase tracking-label-wide text-slate-500">
+                <p className="mt-1 font-mono text-label-xs uppercase tracking-label-wide text-slate-400">
                   Research project
                 </p>
               </div>
@@ -63,7 +63,7 @@ export function LandingFooter() {
                 <li key={tab.href}>
                   <Link
                     href={tab.href}
-                    className="lp-focus text-caption transition-colors hover:text-white ring-offset-ink"
+                    className="lp-focus inline-flex min-h-[1.75rem] items-center text-caption transition-colors hover:text-white ring-offset-ink"
                   >
                     {tab.label}
                   </Link>
@@ -81,7 +81,7 @@ export function LandingFooter() {
                 <li key={engine.id}>
                   <Link
                     href={engine.href}
-                    className="lp-focus text-caption leading-snug transition-colors hover:text-white ring-offset-ink"
+                    className="lp-focus inline-flex min-h-[1.75rem] items-center text-caption leading-snug transition-colors hover:text-white ring-offset-ink"
                   >
                     {engine.title}
                   </Link>
@@ -99,7 +99,7 @@ export function LandingFooter() {
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="lp-focus text-caption transition-colors hover:text-white ring-offset-ink"
+                    className="lp-focus inline-flex min-h-[1.75rem] items-center text-caption transition-colors hover:text-white ring-offset-ink"
                   >
                     {link.label}
                   </Link>
@@ -109,7 +109,7 @@ export function LandingFooter() {
           </nav>
         </div>
 
-        <div className="mt-12 space-y-3 border-t border-white/10 pt-8 text-micro leading-relaxed text-slate-500">
+        <div className="mt-12 space-y-3 border-t border-white/10 pt-8 text-micro leading-relaxed text-slate-400">
           <p>
             <span className="font-mono uppercase tracking-label text-slate-400">
               Academic disclaimer.{" "}
@@ -135,7 +135,7 @@ export function LandingFooter() {
           <p>
             &copy; {year} Construction AI Research Group. All rights reserved.
           </p>
-          <p className="text-slate-500">
+          <p className="text-slate-400">
             {INSTITUTION.department} · {INSTITUTION.academicYear}
           </p>
         </div>

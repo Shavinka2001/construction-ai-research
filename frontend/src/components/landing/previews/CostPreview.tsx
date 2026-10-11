@@ -28,7 +28,7 @@ export function CostPreview() {
           <p className="text-label-xs font-bold uppercase tracking-label text-slate-500">
             Critical path programme
           </p>
-          <p className="text-label-xs font-semibold text-gold-dark">
+          <p className="text-label-xs font-semibold text-gold-ink">
             18 months
           </p>
         </div>
@@ -56,7 +56,7 @@ export function CostPreview() {
         ))}
 
         <p className="pt-1 text-label-xs font-medium text-slate-500">
-          <span className="font-bold text-gold-dark">Gold</span> marks the
+          <span className="font-bold text-gold-ink">Gold</span> marks the
           driving path &mdash; zero float
         </p>
       </div>

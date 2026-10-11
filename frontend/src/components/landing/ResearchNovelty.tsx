@@ -33,9 +33,9 @@ export function ResearchNovelty() {
               <Reveal as="li" key={claim.id}>
                 <article className="grid gap-8 border-t border-slate-200 py-12 lg:grid-cols-12 lg:gap-12 lg:py-16">
                   {/* Index + title rail. */}
-                  <header className="lg:col-span-4">
+                  <header className="min-w-0 lg:col-span-4">
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-xs tabular-nums text-gold">
+                      <span className="font-mono text-xs tabular-nums text-gold-ink">
                         {String(index + 1).padStart(2, "0")}
                       </span>
                       <Icon aria-hidden className="h-4 w-4 text-slate-300" />
@@ -46,10 +46,10 @@ export function ResearchNovelty() {
                     </h3>
                   </header>
 
-                  <div className="lg:col-span-8">
+                  <div className="min-w-0 lg:col-span-8">
                     <div className="grid gap-8 sm:grid-cols-2 sm:gap-10">
                       <div>
-                        <p className="lp-label text-slate-400">
+                        <p className="lp-label text-slate-500">
                           Where it stands
                         </p>
                         <p className="mt-3 text-body-sm leading-[1.7] text-slate-500">
@@ -68,10 +68,10 @@ export function ResearchNovelty() {
                     </div>
 
                     <p className="mt-8 border-t border-slate-200 pt-4">
-                      <span className="lp-label text-slate-400">
+                      <span className="lp-label text-slate-500">
                         Source{" "}
                       </span>
-                      <code className="ml-1 break-words font-mono text-micro leading-relaxed text-slate-600">
+                      <code className="ml-1 [overflow-wrap:anywhere] font-mono text-micro leading-relaxed text-slate-600">
                         {claim.evidence}
                       </code>
                     </p>

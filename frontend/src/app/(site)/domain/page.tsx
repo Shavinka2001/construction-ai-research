@@ -42,9 +42,9 @@ export default function DomainPage() {
             {/* Contents rail. */}
             <nav
               aria-label="On this page"
-              className="lg:col-span-3 lg:sticky lg:top-28 lg:self-start"
+              className="min-w-0 lg:col-span-3 lg:sticky lg:top-28 lg:self-start"
             >
-              <p className="lp-label text-slate-400">
+              <p className="lp-label text-slate-500">
                 On this page
               </p>
               <ul className="mt-4 space-y-2.5 border-l border-slate-200 pl-4">
@@ -52,7 +52,7 @@ export default function DomainPage() {
                   <li key={item.href}>
                     <a
                       href={item.href}
-                      className="lp-focus text-caption text-slate-500 transition-colors hover:text-ink ring-offset-white"
+                      className="lp-focus inline-flex min-h-6 items-center text-caption text-slate-500 transition-colors hover:text-ink ring-offset-white"
                     >
                       {item.label}
                     </a>
@@ -62,7 +62,7 @@ export default function DomainPage() {
             </nav>
 
             {/* Write-up. */}
-            <div className="lg:col-span-9">
+            <div className="min-w-0 lg:col-span-9">
               {DOMAIN_SECTIONS.map((section, index) => (
                 <Reveal key={section.id}>
                   <section
@@ -72,7 +72,7 @@ export default function DomainPage() {
                     className="border-t border-slate-200 py-10 first:border-t-0 first:pt-0 sm:py-12"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="lp-index">
+                      <span className="lp-index text-gold-ink">
                         {String(index + 1).padStart(2, "0")}
                       </span>
                       <h2
@@ -98,7 +98,7 @@ export default function DomainPage() {
                       <ol className="mt-7 max-w-2xl space-y-3 border-t border-slate-200 pt-6">
                         {section.points.map((point, pointIndex) => (
                           <li key={point.slice(0, 40)} className="flex gap-4">
-                            <span className="mt-0.5 shrink-0 font-mono text-label tabular-nums text-gold">
+                            <span className="mt-0.5 shrink-0 font-mono text-label tabular-nums text-gold-ink">
                               {String(pointIndex + 1).padStart(2, "0")}
                             </span>
                             <span className="text-body leading-[1.7] text-slate-600">
@@ -121,7 +121,7 @@ export default function DomainPage() {
                   className="border-t border-slate-200 py-10 sm:py-12"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="lp-index">
+                    <span className="lp-index text-gold-ink">
                       {String(DOMAIN_SECTIONS.length + 1).padStart(2, "0")}
                     </span>
                     <h2
@@ -144,8 +144,8 @@ export default function DomainPage() {
                         key={phase.id}
                         className="grid gap-2 border-b border-slate-200 py-5 sm:grid-cols-12 sm:gap-6"
                       >
-                        <div className="flex items-baseline gap-3 sm:col-span-4">
-                          <span className="font-mono text-label tabular-nums text-gold">
+                        <div className="flex min-w-0 items-baseline gap-3 sm:col-span-4">
+                          <span className="font-mono text-label tabular-nums text-gold-ink">
                             {String(index + 1).padStart(2, "0")}
                           </span>
                           <h3 className="text-body font-semibold text-ink">

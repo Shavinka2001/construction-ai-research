@@ -39,15 +39,20 @@ export function EngineRow({
 
   return (
     <article className="grid gap-10 border-t border-slate-200 py-14 sm:py-16 lg:grid-cols-12 lg:gap-12 lg:py-20">
-      {/* Index rail. */}
-      <div className="lg:col-span-1">
+      {/* Index rail. The oversized numeral is a watermark, kept deliberately
+          pale and therefore hidden from assistive technology; the component
+          number is announced from the heading instead. */}
+      <div className="min-w-0 lg:col-span-1">
         <div className="flex items-center gap-3 lg:flex-col lg:items-start lg:gap-4">
-          <span className="font-display text-4xl font-bold leading-none tracking-display text-slate-200 lg:text-5xl">
+          <span
+            aria-hidden
+            className="font-display text-4xl font-bold leading-none tracking-display text-slate-200 lg:text-5xl"
+          >
             {String(engine.index).padStart(2, "0")}
           </span>
           <Icon
             aria-hidden
-            className="h-5 w-5 shrink-0 text-gold lg:h-6 lg:w-6"
+            className="h-5 w-5 shrink-0 text-gold-ink lg:h-6 lg:w-6"
           />
         </div>
       </div>
@@ -55,27 +60,28 @@ export function EngineRow({
       {/* Copy. */}
       <div
         className={cn(
-          "lg:col-span-6",
+          "min-w-0 lg:col-span-6",
           flip ? "lg:order-last lg:col-start-7" : undefined
         )}
       >
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h3 className="text-xl font-bold leading-tight tracking-heading text-ink sm:text-2xl">
+            <span className="sr-only">{`Component ${engine.index}: `}</span>
             {engine.title}
           </h3>
           <span
             className={cn(
               "lp-label",
               engine.maturity === "live"
-                ? "text-emerald-brand-dark"
-                : "text-slate-400"
+                ? "text-emerald-ink"
+                : "text-slate-500"
             )}
           >
             {engine.maturity === "live" ? "running" : "prototype"}
           </span>
         </div>
 
-        <p className="mt-1.5 font-mono text-label leading-relaxed text-slate-400">
+        <p className="mt-1.5 font-mono text-label leading-relaxed text-slate-500">
           {engine.academicName}
         </p>
 
@@ -104,7 +110,7 @@ export function EngineRow({
           Open in the platform
           <ArrowRight
             aria-hidden
-            className="h-4 w-4 text-gold transition-transform group-hover:translate-x-1"
+            className="h-4 w-4 text-gold-ink transition-transform group-hover:translate-x-1"
           />
           <span className="sr-only"> (sign-in required)</span>
         </Link>
@@ -113,7 +119,7 @@ export function EngineRow({
       {/* Preview, metrics and stack. */}
       <div
         className={cn(
-          "lg:col-span-5",
+          "min-w-0 lg:col-span-5",
           flip ? "lg:order-first lg:col-start-2 lg:row-start-1" : undefined
         )}
       >
@@ -135,14 +141,14 @@ export function EngineRow({
               <dd className="font-mono text-caption font-medium tabular-nums text-ink">
                 {metric.value}
                 {metric.unit ? (
-                  <span className="ml-1 text-slate-400">{metric.unit}</span>
+                  <span className="ml-1 text-slate-500">{metric.unit}</span>
                 ) : null}
               </dd>
             </div>
           ))}
         </dl>
 
-        <p className="mt-5 font-mono text-label leading-relaxed text-slate-400">
+        <p className="mt-5 font-mono text-label leading-relaxed text-slate-500">
           {engine.stack.join("  ·  ")}
         </p>
       </div>

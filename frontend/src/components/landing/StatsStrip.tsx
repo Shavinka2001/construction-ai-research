@@ -68,7 +68,7 @@ function StatItem({
       </dd>
       <dt
         title={stat.provenance}
-        className="mt-2 cursor-help text-micro leading-snug text-slate-500"
+        className="mt-2 cursor-help text-micro leading-snug text-slate-400"
       >
         {stat.label}
       </dt>

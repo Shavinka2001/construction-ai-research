@@ -68,7 +68,7 @@ export function ArchitectureFlow() {
                   <span className="font-mono text-label-sm tabular-nums text-gold">
                     {String(columnIndex + 1).padStart(2, "0")}
                   </span>
-                  <h3 className="lp-label text-slate-500">
+                  <h3 className="lp-label text-slate-400">
                     {LAYER_LABELS[layer]}
                   </h3>
                 </div>
@@ -97,7 +97,7 @@ export function ArchitectureFlow() {
                             aria-hidden
                             className={cn(
                               "mt-0.5 h-4 w-4 shrink-0 transition-colors",
-                              isActive ? "text-gold" : "text-slate-500"
+                              isActive ? "text-gold" : "text-slate-400"
                             )}
                           />
                           <span className="min-w-0 flex-1">
@@ -109,7 +109,7 @@ export function ArchitectureFlow() {
                             >
                               {node.label}
                             </span>
-                            <span className="mt-0.5 block text-micro leading-snug text-slate-500">
+                            <span className="mt-0.5 block text-micro leading-snug text-slate-400">
                               {node.role}
                             </span>
                           </span>
@@ -135,19 +135,19 @@ export function ArchitectureFlow() {
                 <tr className="border-y border-white/10">
                   <th
                     scope="col"
-                    className="py-3 pr-6 font-mono text-label-sm font-medium uppercase tracking-label text-slate-500"
+                    className="py-3 pr-6 font-mono text-label-sm font-medium uppercase tracking-label text-slate-400"
                   >
                     From
                   </th>
                   <th
                     scope="col"
-                    className="py-3 pr-6 font-mono text-label-sm font-medium uppercase tracking-label text-slate-500"
+                    className="py-3 pr-6 font-mono text-label-sm font-medium uppercase tracking-label text-slate-400"
                   >
                     Payload
                   </th>
                   <th
                     scope="col"
-                    className="py-3 font-mono text-label-sm font-medium uppercase tracking-label text-slate-500"
+                    className="py-3 font-mono text-label-sm font-medium uppercase tracking-label text-slate-400"
                   >
                     To
                   </th>
@@ -176,7 +176,7 @@ export function ArchitectureFlow() {
                     <td className="py-3.5 pr-6 text-caption leading-snug text-slate-400">
                       {node.payload}
                     </td>
-                    <td className="py-3.5 font-mono text-micro leading-snug text-slate-500">
+                    <td className="py-3.5 font-mono text-micro leading-snug text-slate-400">
                       {node.flowsTo.length > 0
                         ? node.flowsTo.map(nodeLabel).join(", ")
                         : "—"}

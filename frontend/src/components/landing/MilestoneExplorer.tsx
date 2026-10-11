@@ -58,7 +58,7 @@ export function MilestoneExplorer() {
         <div className="sm:max-w-sm sm:flex-1">
           <label
             htmlFor={selectId}
-            className="lp-label text-slate-400"
+            className="lp-label text-slate-500"
           >
             Choose an assessment
           </label>
@@ -81,7 +81,7 @@ export function MilestoneExplorer() {
           </select>
         </div>
 
-        <p className="font-mono text-micro text-slate-400">
+        <p className="font-mono text-micro text-slate-500">
           {MILESTONES.length} assessments
           {totalMarks > 0 ? ` · ${totalMarks}% allocated` : ""}
         </p>
@@ -103,7 +103,7 @@ export function MilestoneExplorer() {
               className={cn(
                 "inline-flex items-center gap-1.5 lp-label",
                 selected.status === "completed"
-                  ? "text-emerald-brand-dark"
+                  ? "text-emerald-ink"
                   : "text-slate-500"
               )}
             >
@@ -120,10 +120,10 @@ export function MilestoneExplorer() {
             <div className="flex items-start gap-3">
               <CalendarDays
                 aria-hidden
-                className="mt-0.5 h-4 w-4 shrink-0 text-slate-400"
+                className="mt-0.5 h-4 w-4 shrink-0 text-slate-500"
               />
               <div>
-                <dt className="lp-label text-slate-400">
+                <dt className="lp-label text-slate-500">
                   Date
                 </dt>
                 <dd className="mt-1 text-body font-semibold text-ink">
@@ -135,10 +135,10 @@ export function MilestoneExplorer() {
             <div className="flex items-start gap-3">
               <Percent
                 aria-hidden
-                className="mt-0.5 h-4 w-4 shrink-0 text-slate-400"
+                className="mt-0.5 h-4 w-4 shrink-0 text-slate-500"
               />
               <div>
-                <dt className="lp-label text-slate-400">
+                <dt className="lp-label text-slate-500">
                   Marks allocated
                 </dt>
                 <dd className="mt-1 text-body font-semibold text-ink">
@@ -153,7 +153,7 @@ export function MilestoneExplorer() {
           </p>
 
           <div className="mt-6">
-            <h3 className="lp-label text-slate-400">
+            <h3 className="lp-label text-slate-500">
               Deliverables
             </h3>
             <ul className="mt-3 space-y-1.5">
@@ -176,7 +176,7 @@ export function MilestoneExplorer() {
 
       {/* Full schedule. */}
       <div className="mt-14">
-        <h2 className="lp-label text-slate-400">
+        <h2 className="lp-label text-slate-500">
           Full schedule
         </h2>
 
@@ -192,7 +192,7 @@ export function MilestoneExplorer() {
                   <th
                     key={heading}
                     scope="col"
-                    className="py-3 pr-6 font-mono text-label-sm font-medium uppercase tracking-label text-slate-400 last:pr-0"
+                    className="py-3 pr-6 font-mono text-label-sm font-medium uppercase tracking-label text-slate-500 last:pr-0"
                   >
                     {heading}
                   </th>
@@ -212,7 +212,7 @@ export function MilestoneExplorer() {
                     <button
                       type="button"
                       onClick={() => setSelectedId(milestone.id)}
-                      className="lp-focus text-left text-body-sm font-semibold text-ink underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:decoration-gold ring-offset-white"
+                      className="lp-focus inline-flex min-h-6 items-center text-left text-body-sm font-semibold text-ink underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:decoration-gold ring-offset-white"
                     >
                       {milestone.name}
                     </button>
@@ -227,8 +227,8 @@ export function MilestoneExplorer() {
                     className={cn(
                       "py-3.5 align-top font-mono text-micro uppercase tracking-label",
                       milestone.status === "completed"
-                        ? "text-emerald-brand-dark"
-                        : "text-slate-400"
+                        ? "text-emerald-ink"
+                        : "text-slate-500"
                     )}
                   >
                     {STATUS_LABELS[milestone.status]}

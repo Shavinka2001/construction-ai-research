@@ -69,7 +69,7 @@ export function SiteNav() {
       >
         <Link
           href="/"
-          className="lp-focus flex shrink-0 items-center gap-2 rounded-md ring-offset-ink"
+          className="lp-focus -my-1 flex min-h-[1.75rem] shrink-0 items-center gap-2 rounded-md py-1 ring-offset-ink"
         >
           {/* Mark: a plan outline with a setback line, drawn rather than
               lettered, so the wordmark beside it carries the name. */}

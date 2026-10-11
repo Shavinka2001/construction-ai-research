@@ -28,8 +28,8 @@ export default function ContactPage() {
         <Container>
           <div className="grid gap-14 lg:grid-cols-12 lg:gap-16">
             {/* Directory. */}
-            <div className="lg:col-span-5">
-              <h2 className="lp-label text-slate-400">
+            <div className="min-w-0 lg:col-span-5">
+              <h2 className="lp-label text-slate-500">
                 General contacts
               </h2>
 
@@ -39,13 +39,13 @@ export default function ContactPage() {
                     key={channel.label}
                     className="flex flex-col gap-1 border-b border-slate-200 py-4 sm:flex-row sm:items-baseline sm:gap-6"
                   >
-                    <dt className="lp-label text-slate-400 sm:w-32 sm:shrink-0">
+                    <dt className="lp-label text-slate-500 sm:w-32 sm:shrink-0">
                       {channel.label}
                     </dt>
                     <dd>
                       <a
                         href={channel.href}
-                        className="lp-focus font-mono text-body-sm text-ink underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:decoration-gold ring-offset-white"
+                        className="lp-focus inline-flex min-h-6 items-center font-mono text-body-sm text-ink underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:decoration-gold ring-offset-white"
                       >
                         {channel.value}
                       </a>
@@ -55,7 +55,7 @@ export default function ContactPage() {
               </dl>
 
               {/* Per-member addresses. */}
-              <h2 className="mt-12 lp-label text-slate-400">
+              <h2 className="mt-12 lp-label text-slate-500">
                 Researchers
               </h2>
 
@@ -71,11 +71,11 @@ export default function ContactPage() {
                     <dd className="min-w-0">
                       <a
                         href={`mailto:${member.email}`}
-                        className="lp-focus break-all font-mono text-caption text-slate-600 underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-gold ring-offset-white"
+                        className="lp-focus inline-flex min-h-6 items-center break-all font-mono text-caption text-slate-600 underline decoration-slate-300 decoration-1 underline-offset-4 transition-colors hover:text-ink hover:decoration-gold ring-offset-white"
                       >
                         {member.email}
                       </a>
-                      <span className="mt-0.5 block lp-label text-slate-400">
+                      <span className="mt-0.5 block lp-label text-slate-500">
                         {member.componentLabel}
                       </span>
                     </dd>
@@ -84,7 +84,7 @@ export default function ContactPage() {
               </dl>
 
               {/* Postal address. */}
-              <h2 className="mt-12 lp-label text-slate-400">
+              <h2 className="mt-12 lp-label text-slate-500">
                 Department
               </h2>
               <address className="mt-4 not-italic text-body-sm leading-[1.8] text-slate-600">
@@ -102,8 +102,8 @@ export default function ContactPage() {
             </div>
 
             {/* Message template. */}
-            <div className="lg:col-span-7">
-              <h2 className="lp-label text-slate-400">
+            <div className="min-w-0 lg:col-span-7">
+              <h2 className="lp-label text-slate-500">
                 Message template
               </h2>
               <p className="mt-3 max-w-xl text-body leading-[1.7] text-slate-600">

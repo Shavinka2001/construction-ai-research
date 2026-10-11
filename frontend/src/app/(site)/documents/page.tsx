@@ -56,7 +56,7 @@ export default function DocumentsPage() {
 
       <Section id="documents" className="py-section lg:py-section-lg">
         <Container>
-          <p className="font-mono text-micro text-slate-400">
+          <p className="font-mono text-micro text-slate-500">
             {published} of {PROJECT_DOCUMENTS.length} available
           </p>
 
@@ -66,7 +66,7 @@ export default function DocumentsPage() {
                 <section aria-labelledby={`group-${group.kind}`}>
                   <h2
                     id={`group-${group.kind}`}
-                    className="border-b border-slate-200 pb-3 lp-label text-slate-400"
+                    className="border-b border-slate-200 pb-3 lp-label text-slate-500"
                   >
                     {DOCUMENT_KIND_LABELS[group.kind]}
                   </h2>
@@ -81,12 +81,12 @@ export default function DocumentsPage() {
                             <span
                               className={cn(
                                 "block text-body font-semibold leading-snug",
-                                isPending ? "text-slate-400" : "text-ink"
+                                isPending ? "text-slate-500" : "text-ink"
                               )}
                             >
                               {doc.title}
                             </span>
-                            <span className="mt-1 block font-mono text-label text-slate-400">
+                            <span className="mt-1 block font-mono text-label text-slate-500">
                               {doc.author}
                               {doc.submittedOn
                                 ? ` · ${formatDate(doc.submittedOn)}`
@@ -95,11 +95,11 @@ export default function DocumentsPage() {
                           </span>
 
                           {isPending ? (
-                            <span className="shrink-0 lp-label text-slate-400">
+                            <span className="shrink-0 lp-label text-slate-500">
                               Pending
                             </span>
                           ) : (
-                            <span className="flex shrink-0 items-center gap-1.5 lp-label text-gold-dark">
+                            <span className="flex shrink-0 items-center gap-1.5 lp-label text-gold-ink">
                               View
                               <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
                             </span>

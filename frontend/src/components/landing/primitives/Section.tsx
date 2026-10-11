@@ -91,11 +91,13 @@ export function SectionMasthead({
           isInk ? "border-white/10" : "border-slate-200"
         )}
       >
-        <span className="lp-index">{index}</span>
+        <span className={cn("lp-index", isInk ? "text-gold" : "text-gold-ink")}>
+          {index}
+        </span>
         <span
           className={cn(
             "lp-label",
-            isInk ? "text-slate-500" : "text-slate-400"
+            isInk ? "text-slate-400" : "text-slate-500"
           )}
         >
           {label}

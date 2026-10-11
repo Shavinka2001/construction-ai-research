@@ -217,7 +217,7 @@ html[data-landing="true"] .font-mono {
 
   /* Hanging section index, e.g. the "02" beside a section title. */
   .lp-index {
-    @apply font-mono text-label font-medium tabular-nums text-gold;
+    @apply font-mono text-label font-medium tabular-nums;
   }
 
   /* Uppercase category label. */
