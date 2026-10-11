@@ -140,9 +140,11 @@ drop the WebGL hero to stay inside the size limit.
 
 ## Typefaces
 
-- **Instrument Serif** (`font-display`) — display sizes only. A single regular
-  weight, so anything below `text-title` stays on the sans stack; the sweep
-  that enforced this is why small headings carry no `font-display`.
+- **Inter Tight** (`font-display`) — display sizes only. Inter's
+  display-optimised sibling: same skeleton as the body face, tighter spacing
+  and apertures for large sizes. Headline and body therefore share one voice.
+  A serif was tried here and cut: it read editorial rather than minimal, and
+  it collided with the sans body copy.
 - **Inter** (`font-sans`) — body copy, and shared with the dashboard and auth
   screens, which is why it was left alone.
 - **JetBrains Mono** (`font-mono`) — figures, thresholds, branch names, paths.

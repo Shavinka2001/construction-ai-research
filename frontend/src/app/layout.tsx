@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import { Inter, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 // Leaflet's stylesheet is imported once here (not inside the dynamically
 // imported map components) so it ships in the global CSS bundle instead of a
@@ -15,17 +15,16 @@ const inter = Inter({
 /**
  * Display face for the public site (`font-display` in Tailwind).
  *
- * A high-contrast serif rather than another geometric sans: it separates this
- * from the default product-site look and suits an architectural subject. It
- * ships a single regular weight, which carries at display sizes but reads thin
- * below them, so smaller headings stay on the sans stack.
+ * Inter's display-optimised sibling: same skeleton as the body face, drawn
+ * with tighter spacing and apertures for large sizes. Pairing it with Inter
+ * means headline and body share one voice instead of colliding, which is what
+ * a serif display did here before.
  *
  * Body copy remains on Inter, so the dashboard and auth screens are unchanged.
  */
-const instrumentSerif = Instrument_Serif({
+const interTight = Inter_Tight({
   subsets: ["latin"],
-  weight: ["400"],
-  style: ["normal", "italic"],
+  weight: ["500", "600", "700"],
   variable: "--font-display",
   display: "swap",
 });
@@ -65,7 +64,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} h-full`}
+      className={`${inter.variable} ${interTight.variable} ${jetbrainsMono.variable} h-full`}
       suppressHydrationWarning
     >
       <body className="min-h-full font-sans">{children}</body>
