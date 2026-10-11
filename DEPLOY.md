@@ -191,3 +191,11 @@ swallow `/api/predict-compliance`, a Next.js route handler in the frontend.
 
 `main` does not contain this site. Set **Settings → Git → Production Branch**
 to the branch carrying the work, and make sure it is pushed.
+
+### "Redeploy" rebuilds the same commit
+
+A redeploy re-runs the build for the commit that deployment was created from.
+It does not pick up later commits. If the build log's `Cloning ...` line shows
+an older commit than the branch head, that is what happened — push a commit,
+or use **Deployments → the entry for the newest commit**, rather than
+redeploying an older one.
