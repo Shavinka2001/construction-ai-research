@@ -126,3 +126,68 @@ to be uploaded to the course web as files instead:
 
 The seven public tabs survive a static export. `/login` and `/dashboard` do
 not, since they depend on the backend either way.
+
+---
+
+## If the build fails with "No Next.js version detected"
+
+The full message ends with *"check your Root Directory setting matches the
+directory of your package.json file"*, and that is the actual cause. This
+repository has no `package.json` at its root — it lives in `frontend/`. The
+build log confirms it:
+
+```
+Installing dependencies...
+up to date in 5s          <- nothing to install: no package.json at the root
+```
+
+Two ways to fix it. **Pick one.**
+
+### A. Set the Root Directory (the documented route)
+
+1. Vercel → your project → **Settings** → **Build and Deployment**.
+2. Find **Root Directory**, click **Edit**, type `frontend`, click **Save**.
+3. **Deployments** → `...` on the latest one → **Redeploy**, and untick
+   **"Use existing Build Cache"**.
+
+If it still fails, check you are editing the right project — importing the
+repository twice leaves two projects with the same name.
+
+### B. Leave the Root Directory empty and let `vercel.json` do it
+
+The `vercel.json` at the repository root declares `frontend` as a service, so
+Vercel builds that directory with no dashboard setting at all:
+
+```json
+{
+  "services": { "frontend": { "root": "frontend", "framework": "nextjs" } },
+  "rewrites": [{ "source": "/(.*)", "destination": { "service": "frontend" } }]
+}
+```
+
+For this to apply, **Root Directory must be blank**. When it is set to
+`frontend`, Vercel reads `frontend/vercel.json` instead and the root file is
+ignored — harmless, but it does nothing.
+
+### Why the backend is not a second service
+
+Vercel suggests a two-service config for this repository. The backend cannot
+build there: `backend/requirements.txt` pulls in `torch`, `ultralytics` and
+`opencv`, far past the function size limit, and `main.py` runs `init_db()` and
+`seed_default_admin()` in a lifespan hook — which under serverless runs once
+per cold start. Adding it would fail the whole project, because a services
+build fails if any single service fails.
+
+When the backend is hosted somewhere that suits it, add it back as:
+
+```json
+"backend": { "root": "backend", "framework": "fastapi", "entrypoint": "main.py" }
+```
+
+with the public rewrite `"/api/v1/(.*)"` — **not** `"/api/(.*)"`, which would
+swallow `/api/predict-compliance`, a Next.js route handler in the frontend.
+
+### The branch also matters
+
+`main` does not contain this site. Set **Settings → Git → Production Branch**
+to the branch carrying the work, and make sure it is pushed.
