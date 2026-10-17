@@ -11,7 +11,10 @@ pyjwt>=2.8.0
 email-validator>=2.2.0
 psycopg2-binary>=2.9.10
 ultralytics>=8.3.0
-opencv-python-headless>=4.10.0
+# Pinned to the 4.x line: the CV thresholds in clash_detection / architectural_audit
+# are tuned against OpenCV 4 behaviour, and OpenCV 5 changed HoughLinesP output
+# shape (and other defaults). Re-tune and re-run the evaluation before moving.
+opencv-python-headless>=4.10.0,<5.0.0
 numpy>=1.26.0
 pymupdf>=1.24.0
 torch>=2.2.0

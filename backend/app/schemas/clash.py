@@ -139,9 +139,37 @@ class OpeningsScheduleOut(BaseModel):
     windows_list: List[OpeningScheduleItemOut] = Field(default_factory=list)
 
 
+class PlanScaleOut(BaseModel):
+    """
+    How many metres one canvas pixel represents, and where that came from.
+
+    Every metric verdict in the audit (room area, window-to-floor ratio, wall
+    thickness) is linear in ``meters_per_pixel``. ``metrics_trustworthy`` is
+    false when the scale could not be measured and an assumed footprint span
+    was used instead — the UI must then label those verdicts as indicative
+    rather than presenting them as measurements.
+    """
+
+    meters_per_pixel: float
+    pixels_per_meter: float
+    source: Literal["DIMENSION_OCR", "USER_SPAN", "ASSUMED_DEFAULT"]
+    confidence: float = Field(..., description="0.0 assumed … 1.0 exact")
+    detail: str
+    samples: int = 0
+    is_measured: bool
+    metrics_trustworthy: bool
+
+
 class ArchitecturalAuditOut(BaseModel):
     """Passive design + code compliance + structural synthesis audit bundle."""
 
+    scale: Optional[PlanScaleOut] = Field(
+        None,
+        description=(
+            "Resolved drawing scale and its provenance. Read "
+            "`metrics_trustworthy` before presenting any metric finding."
+        ),
+    )
     wall_classifications: WallClassificationsOut = Field(
         default_factory=WallClassificationsOut
     )

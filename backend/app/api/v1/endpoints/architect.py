@@ -29,7 +29,15 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
@@ -160,6 +168,19 @@ async def clash_detection(
             "clash-free columns from architectural walls and openings."
         ),
     ),
+    plan_span_m: float | None = Form(
+        None,
+        gt=0,
+        le=200,
+        description=(
+            "Real-world length of the longer side of the building footprint, "
+            "in metres. Supplying it pins the drawing scale exactly; without "
+            "it the pipeline reads dimension strings off the sheet and, "
+            "failing that, falls back to an assumed span and marks every "
+            "metric verdict as indicative "
+            "(`architectural_audit.scale.metrics_trustworthy = false`)."
+        ),
+    ),
 ):
     """
     Hybrid AI/CV clash-detection endpoint (dual-plan or AI-GSL).
@@ -182,7 +203,7 @@ async def clash_detection(
             struct_path = await _persist_upload(file_struct, "struct")
 
         # 2–5) YOLOv8 + OpenCV/GSL + IoU pipeline ------------------------------
-        result = detect_clashes(arch_path, struct_path)
+        result = detect_clashes(arch_path, struct_path, plan_span_m=plan_span_m)
         ai_gsl = bool(result.get("is_ai_generated"))
 
         return success_response(

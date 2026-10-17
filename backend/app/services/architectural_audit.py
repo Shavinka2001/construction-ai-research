@@ -25,6 +25,7 @@ from app.services.clash_detection import (
     _is_sheet_border_contour,
     _is_sheet_border_segment,
 )
+from app.services.plan_scale import ScaleResolution, resolve_scale
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,7 @@ def detect_and_classify_walls(
     arch_image: np.ndarray,
     columns: list[Detection],
     canvas: int = CANVAS_SIZE,
+    meters_per_pixel: float | None = None,
 ) -> list[dict[str, Any]]:
     """
     Extract wall segments via OpenCV line / contour processing and classify
@@ -174,7 +176,17 @@ def detect_and_classify_walls(
 
     Thin dimension / grid / text strokes (< ~6 px ink width) are rejected so
     they never become "ghost walls" in the 3D viewport.
+
+    ``meters_per_pixel`` is the scale resolved once for the whole plan (see
+    ``app.services.plan_scale``). It must be the same value the room-area
+    compliance check uses, otherwise a wall's thickness and a room's area are
+    measured with two different rulers on one drawing.
     """
+    mpp = (
+        float(meters_per_pixel)
+        if meters_per_pixel and meters_per_pixel > 0
+        else 1.0 / PX_PER_METER
+    )
     h, w = arch_image.shape[:2]
     min_thickness = _min_wall_thickness_px(w, h)
     gray = cv2.cvtColor(arch_image, cv2.COLOR_BGR2GRAY)
@@ -247,7 +259,7 @@ def detect_and_classify_walls(
             rejected_thin += 1
             continue
 
-        thickness_m = thickness_px / PX_PER_METER
+        thickness_m = thickness_px * mpp
         box = BoundingBox(float(x), float(y), float(x + bw), float(y + bh))
 
         aligns_with_column = _wall_aligns_with_column(box, columns)
@@ -290,8 +302,10 @@ def detect_and_classify_walls(
             edges, 1, np.pi / 180, threshold=80, minLineLength=80, maxLineGap=12
         )
         if lines is not None:
-            for line in lines[:40]:
-                x1, y1, x2, y2 = line[0]
+            # OpenCV 4 returns (N, 1, 4) from HoughLinesP, OpenCV 5 returns
+            # (N, 4). Reshaping makes the unpack below correct on both.
+            for line in lines.reshape(-1, 4)[:40]:
+                x1, y1, x2, y2 = line
                 length = float(np.hypot(x2 - x1, y2 - y1))
                 if length < 70:
                     continue
@@ -325,7 +339,7 @@ def detect_and_classify_walls(
                     rejected_thin += 1
                     continue
 
-                thickness_m = thickness_px / PX_PER_METER
+                thickness_m = thickness_px * mpp
                 aligns_with_column = _wall_aligns_with_column(box, columns)
                 is_load_bearing = (
                     thickness_m >= LOAD_BEARING_THICKNESS_M or aligns_with_column
@@ -669,11 +683,21 @@ def analyze_room_code_compliance(
     openings: list[Detection],
     house_bounds: dict[str, Any] | None,
     canvas: int = CANVAS_SIZE,
+    meters_per_pixel: float | None = None,
 ) -> dict[str, Any]:
     """
     Step 2 & 3 — window-to-floor ratio (≥ 10%) and residential minimum dimensions.
+
+    ``meters_per_pixel`` is the plan-wide resolved scale. When it is omitted the
+    legacy fixed-span assumption is used, which is why the caller should pass a
+    :class:`~app.services.plan_scale.ScaleResolution` through instead: every
+    area and width verdict below is linear in this number.
     """
-    mpp = _meters_per_pixel(house_bounds, canvas)
+    mpp = (
+        float(meters_per_pixel)
+        if meters_per_pixel and meters_per_pixel > 0
+        else _meters_per_pixel(house_bounds, canvas)
+    )
     sqm_per_px = mpp * mpp
     windows = [o for o in openings if _is_window_opening(o)]
 
@@ -807,13 +831,34 @@ def run_architectural_audit(
     *,
     ai_generated: bool = False,
     clashes_count: int = 0,
+    scale: ScaleResolution | None = None,
+    plan_span_m: float | None = None,
 ) -> dict[str, Any]:
-    """Run passive-design, code compliance, and structural synthesis audits."""
-    walls = detect_and_classify_walls(arch_image, columns, canvas=canvas)
+    """
+    Run passive-design, code compliance, and structural synthesis audits.
+
+    The drawing's scale is resolved **once** here and threaded into both the
+    wall classifier and the room-area compliance check, so every metric in the
+    returned bundle is measured against the same ruler. The resolution and its
+    provenance are returned under ``scale``; when ``scale.is_measured`` is
+    false, the metric findings are proportional to an assumed footprint span
+    and must not be presented as measurements.
+    """
+    resolved = scale or resolve_scale(
+        arch_image,
+        house_bounds=house_bounds,
+        canvas=canvas,
+        plan_span_m=plan_span_m,
+    )
+    mpp = resolved.meters_per_pixel
+
+    walls = detect_and_classify_walls(
+        arch_image, columns, canvas=canvas, meters_per_pixel=mpp
+    )
     ventilation = analyze_cross_ventilation(arch_image, openings)
     solar = analyze_solar_gain(openings, canvas=canvas)
     room_compliance = analyze_room_code_compliance(
-        arch_image, openings, house_bounds, canvas=canvas
+        arch_image, openings, house_bounds, canvas=canvas, meters_per_pixel=mpp
     )
     structural_grid = build_structural_grid_status(
         columns, ai_generated=ai_generated, clashes_count=clashes_count
@@ -823,6 +868,7 @@ def run_architectural_audit(
     partition = sum(1 for w in walls if w.get("wall_type") == "PARTITION")
 
     return {
+        "scale": resolved.to_payload(),
         "walls": walls,
         "wall_classifications": {
             "load_bearing_count": load_bearing,

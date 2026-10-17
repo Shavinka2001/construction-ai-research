@@ -2250,8 +2250,10 @@ def _segments_from_hough(
     if lines is None:
         return walls
     img_h, img_w = edge_or_mask.shape[:2]
-    for line in lines:
-        x1, y1, x2, y2 = (float(v) for v in line[0])
+    # OpenCV 4 returns (N, 1, 4) from HoughLinesP, OpenCV 5 returns (N, 4).
+    # Reshaping makes the unpack below correct on both.
+    for line in lines.reshape(-1, 4):
+        x1, y1, x2, y2 = (float(v) for v in line)
         if _is_sheet_border_segment(x1, y1, x2, y2, img_w, img_h):
             continue
         _append_unique_segment(walls, seen, x1, y1, x2, y2, thickness)
@@ -3708,6 +3710,7 @@ def find_clashes(
 def detect_clashes(
     arch_image_path: str | Path,
     struct_image_path: str | Path | None = None,
+    plan_span_m: float | None = None,
 ) -> dict[str, Any]:
     """
     Single-blueprint architectural compliance & generative structural synthesis.
@@ -3715,6 +3718,12 @@ def detect_clashes(
     Upload one 2D architectural plan — the pipeline extracts geometry, runs
     ventilation/lighting/code audits, and synthesizes a clash-free column grid
     via AI-GSL when no structural plan is supplied (recommended workflow).
+
+    ``plan_span_m`` is the real-world length of the longer side of the building
+    footprint. Supplying it pins the drawing's scale exactly; without it the
+    pipeline tries to read dimension strings off the sheet and, failing that,
+    falls back to an assumed span and flags every metric verdict as indicative
+    (see ``architectural_audit.scale`` in the result).
     """
     # --- 1) Load ----------------------------------------------------------------
     arch_raw = _load_image(arch_image_path)
@@ -3826,6 +3835,7 @@ def detect_clashes(
         house_bounds=house_bounds,
         ai_generated=ai_generated,
         clashes_count=len(clashes),
+        plan_span_m=plan_span_m,
     )
     # Keep room-polygon walls — audit classifier often rejects sparse plans.
     if not wall_detections and audit.get("walls"):
@@ -3883,6 +3893,7 @@ def detect_clashes(
         ],
         "recommendations": recommendations,
         "architectural_audit": {
+            "scale": audit.get("scale"),
             "wall_classifications": audit["wall_classifications"],
             "cross_ventilation": audit["cross_ventilation"],
             "solar_gain": audit["solar_gain"],
