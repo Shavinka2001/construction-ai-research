@@ -56,6 +56,25 @@ class UserStatusUpdate(BaseModel):
     status: UserStatus
 
 
+class AdminStatsOut(BaseModel):
+    """
+    Account totals across the whole user table.
+
+    Served separately from the directory because that endpoint is paged: a
+    client counting the rows it was given would report the size of one page as
+    the size of the platform.
+    """
+
+    total_users: int = Field(..., ge=0)
+    active_users: int = Field(..., ge=0)
+    suspended_users: int = Field(..., ge=0)
+    clients: int = Field(..., ge=0, description="Self-registered land owners")
+    professionals: int = Field(
+        ..., ge=0, description="Surveyors, architects, QSs and authority officers"
+    )
+    admins: int = Field(..., ge=0)
+
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=1, max_length=128)

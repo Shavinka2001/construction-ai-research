@@ -8,11 +8,12 @@ endpoints. Registration is now client-only and every professional account is
 created by an authenticated administrator.
 """
 
+from math import ceil
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user_id, require_admin
@@ -24,10 +25,16 @@ from app.models.user_status import UserStatus
 from app.schemas.response import (
     ApiResponse,
     ErrorDetail,
+    PaginatedData,
     error_response,
     success_response,
 )
-from app.schemas.user import ProfessionalCreate, UserOut, UserStatusUpdate
+from app.schemas.user import (
+    AdminStatsOut,
+    ProfessionalCreate,
+    UserOut,
+    UserStatusUpdate,
+)
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -35,8 +42,58 @@ MAX_PAGE_SIZE = 100
 
 
 @router.get(
+    "/stats",
+    response_model=ApiResponse[AdminStatsOut],
+    summary="Platform account totals",
+    description=(
+        "Counts over the whole user table. A separate endpoint because the "
+        "directory is paged: totals derived from one page of results would be "
+        "wrong the moment there is more than one page."
+    ),
+)
+def user_stats(
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_admin),
+) -> dict:
+    # One grouped query rather than six counts — the aggregation is cheap and
+    # this keeps the numbers consistent with each other.
+    rows = (
+        db.query(User.role, User.status, func.count(User.id))
+        .group_by(User.role, User.status)
+        .all()
+    )
+
+    stats = AdminStatsOut(
+        total_users=0,
+        active_users=0,
+        suspended_users=0,
+        clients=0,
+        professionals=0,
+        admins=0,
+    )
+    for role, account_status, count in rows:
+        stats.total_users += count
+        if account_status is UserStatus.ACTIVE:
+            stats.active_users += count
+        else:
+            stats.suspended_users += count
+
+        if role is UserRole.CLIENT:
+            stats.clients += count
+        elif role is UserRole.ADMIN:
+            stats.admins += count
+        else:
+            stats.professionals += count
+
+    return success_response(
+        data=stats.model_dump(),
+        message="Account totals retrieved successfully",
+    )
+
+
+@router.get(
     "/users",
-    response_model=ApiResponse[list[UserOut]],
+    response_model=ApiResponse[PaginatedData[UserOut]],
     summary="List registered users",
     description=(
         "Admin-only user directory, newest first. Supports `q` (name or email "
@@ -76,17 +133,26 @@ def list_users(
 
     total = query.count()
     users = (
-        query.order_by(User.created_at.desc())
+        query.order_by(User.created_at.desc(), User.id.desc())
         .offset((page - 1) * size)
         .limit(size)
         .all()
     )
 
+    # The client needs the total as a number to render paging controls, so it
+    # goes in the payload. It used to be interpolated into `message`, which
+    # left the frontend parsing a sentence to find out how many pages exist.
+    payload = PaginatedData[UserOut](
+        items=[UserOut.model_validate(user) for user in users],
+        total=total,
+        page=page,
+        page_size=size,
+        total_pages=max(1, ceil(total / size)) if total else 0,
+    )
+
     return success_response(
-        data=[UserOut.model_validate(user).model_dump() for user in users],
-        message=(
-            f"Showing {len(users)} of {total} user(s) — page {page}, size {size}"
-        ),
+        data=payload.model_dump(),
+        message=f"Retrieved {len(users)} of {total} user(s)",
     )
 
 

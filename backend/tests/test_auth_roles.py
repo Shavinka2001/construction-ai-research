@@ -265,7 +265,7 @@ def test_an_active_admin_always_survives(client, make_user, auth_headers) -> Non
         f"{ADMIN_USERS}?role=ADMIN&status=ACTIVE", headers=headers
     )
     assert remaining.status_code == 200, remaining.text
-    assert [u["email"] for u in remaining.json()["data"]] == ["admin@example.com"]
+    assert [u["email"] for u in remaining.json()["data"]["items"]] == ["admin@example.com"]
 
 
 def test_status_change_on_unknown_user_is_404(client, make_user, auth_headers) -> None:
@@ -308,9 +308,12 @@ def test_user_directory_is_paged(client, make_user, auth_headers) -> None:
     )
 
     assert response.status_code == 200, response.text
-    body = response.json()
-    assert len(body["data"]) == 3
-    assert "of 8" in body["message"]  # 7 clients + the admin
+    paged = response.json()["data"]
+    assert len(paged["items"]) == 3
+    assert paged["total"] == 8  # 7 clients + the admin
+    assert paged["page"] == 1
+    assert paged["page_size"] == 3
+    assert paged["total_pages"] == 3
 
 
 def test_user_directory_filters_by_role_and_search(
@@ -322,10 +325,10 @@ def test_user_directory_filters_by_role_and_search(
     headers = auth_headers("admin@example.com")
 
     by_role = client.get(f"{ADMIN_USERS}?role=ARCHITECT", headers=headers)
-    assert [u["email"] for u in by_role.json()["data"]] == ["ada@example.com"]
+    assert [u["email"] for u in by_role.json()["data"]["items"]] == ["ada@example.com"]
 
     by_search = client.get(f"{ADMIN_USERS}?q=bob", headers=headers)
-    assert [u["email"] for u in by_search.json()["data"]] == ["bob@example.com"]
+    assert [u["email"] for u in by_search.json()["data"]["items"]] == ["bob@example.com"]
 
 
 def test_user_directory_filters_by_status(client, make_user, auth_headers) -> None:
@@ -337,7 +340,7 @@ def test_user_directory_filters_by_status(client, make_user, auth_headers) -> No
         f"{ADMIN_USERS}?status=SUSPENDED", headers=auth_headers("admin@example.com")
     )
 
-    assert [u["email"] for u in response.json()["data"]] == ["gone@example.com"]
+    assert [u["email"] for u in response.json()["data"]["items"]] == ["gone@example.com"]
 
 
 def test_directory_page_size_is_capped(client, make_user, auth_headers) -> None:
@@ -356,3 +359,92 @@ def test_directory_requires_admin(client, make_user, auth_headers) -> None:
     response = client.get(ADMIN_USERS, headers=auth_headers("client@example.com"))
 
     assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Platform totals
+# ---------------------------------------------------------------------------
+
+ADMIN_STATS = "/api/v1/admin/stats"
+
+
+def test_stats_count_the_whole_table_not_one_page(
+    client, make_user, auth_headers
+) -> None:
+    """
+    The directory is paged, so totals must come from the database.
+
+    This is the guard against the stat cards reporting the size of the current
+    page: 30 accounts across 2 pages must still read as 30.
+    """
+    make_user("admin@example.com", UserRole.ADMIN)
+    for i in range(29):
+        make_user(f"user{i}@example.com", UserRole.CLIENT)
+
+    response = client.get(ADMIN_STATS, headers=auth_headers("admin@example.com"))
+
+    assert response.status_code == 200, response.text
+    stats = response.json()["data"]
+    assert stats["total_users"] == 30
+    assert stats["clients"] == 29
+    assert stats["admins"] == 1
+
+
+def test_stats_split_roles_and_statuses(client, make_user, auth_headers) -> None:
+    make_user("admin@example.com", UserRole.ADMIN)
+    make_user("client@example.com", UserRole.CLIENT)
+    make_user("architect@example.com", UserRole.ARCHITECT)
+    make_user("surveyor@example.com", UserRole.SURVEYOR)
+    make_user(
+        "gone@example.com", UserRole.QUANTITY_SURVEYOR, status=UserStatus.SUSPENDED
+    )
+
+    stats = client.get(
+        ADMIN_STATS, headers=auth_headers("admin@example.com")
+    ).json()["data"]
+
+    assert stats["total_users"] == 5
+    assert stats["active_users"] == 4
+    assert stats["suspended_users"] == 1
+    assert stats["clients"] == 1
+    assert stats["professionals"] == 3  # architect + surveyor + suspended QS
+    assert stats["admins"] == 1
+    # The two partitions must each account for everyone.
+    assert stats["active_users"] + stats["suspended_users"] == stats["total_users"]
+    assert (
+        stats["clients"] + stats["professionals"] + stats["admins"]
+        == stats["total_users"]
+    )
+
+
+def test_stats_on_an_empty_platform_are_zero(client, make_user, auth_headers) -> None:
+    make_user("admin@example.com", UserRole.ADMIN)
+
+    stats = client.get(
+        ADMIN_STATS, headers=auth_headers("admin@example.com")
+    ).json()["data"]
+
+    assert stats["total_users"] == 1
+    assert stats["clients"] == 0
+    assert stats["professionals"] == 0
+    assert stats["suspended_users"] == 0
+
+
+def test_stats_require_admin(client, make_user, auth_headers) -> None:
+    make_user("client@example.com", UserRole.CLIENT)
+
+    response = client.get(ADMIN_STATS, headers=auth_headers("client@example.com"))
+
+    assert response.status_code == 403
+
+
+def test_empty_directory_reports_zero_pages(client, make_user, auth_headers) -> None:
+    make_user("admin@example.com", UserRole.ADMIN)
+
+    paged = client.get(
+        f"{ADMIN_USERS}?q=nobody-matches-this", headers=auth_headers("admin@example.com")
+    ).json()["data"]
+
+    assert paged["items"] == []
+    assert paged["total"] == 0
+    assert paged["total_pages"] == 0

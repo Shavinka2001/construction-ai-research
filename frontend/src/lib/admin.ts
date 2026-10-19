@@ -24,30 +24,86 @@ export type CreateProfessionalRequest = {
   contact_number?: string | null;
 };
 
+/**
+ * Platform-wide account totals.
+ *
+ * Served by `/admin/stats` rather than counted from a directory response: the
+ * directory is paged, so counting the rows in hand would report the size of
+ * the current page as the size of the platform.
+ */
 export type AdminStats = {
   totalUsers: number;
-  registeredClients: number;
-  verifiedProfessionals: number;
+  activeUsers: number;
+  suspendedUsers: number;
+  clients: number;
+  professionals: number;
+  admins: number;
 };
 
-export function computeAdminStats(users: AdminUser[]): AdminStats {
-  const registeredClients = users.filter((u) => u.role === "CLIENT").length;
-  const verifiedProfessionals = users.filter(
-    (u) => u.role !== "CLIENT" && u.role !== "ADMIN"
-  ).length;
+export type UserDirectoryQuery = {
+  q?: string;
+  role?: UserRole | "";
+  status?: UserStatus | "";
+  page?: number;
+  size?: number;
+};
 
+export type UserDirectoryPage = {
+  items: AdminUser[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export async function fetchAdminStats(token: string): Promise<AdminStats> {
+  const response = await apiRequestAuth<{
+    total_users: number;
+    active_users: number;
+    suspended_users: number;
+    clients: number;
+    professionals: number;
+    admins: number;
+  }>("/admin/stats", token, { method: "GET" });
+
+  const data = response.data!;
   return {
-    totalUsers: users.length,
-    registeredClients,
-    verifiedProfessionals,
+    totalUsers: data.total_users,
+    activeUsers: data.active_users,
+    suspendedUsers: data.suspended_users,
+    clients: data.clients,
+    professionals: data.professionals,
+    admins: data.admins,
   };
 }
 
-export async function fetchAdminUsers(token: string): Promise<AdminUser[]> {
-  const response = await apiRequestAuth<AdminUser[]>("/admin/users", token, {
-    method: "GET",
-  });
-  return response.data ?? [];
+export async function fetchAdminUsers(
+  token: string,
+  query: UserDirectoryQuery = {}
+): Promise<UserDirectoryPage> {
+  const params = new URLSearchParams();
+  if (query.q?.trim()) params.set("q", query.q.trim());
+  if (query.role) params.set("role", query.role);
+  if (query.status) params.set("status", query.status);
+  params.set("page", String(query.page ?? 1));
+  params.set("size", String(query.size ?? 25));
+
+  const response = await apiRequestAuth<{
+    items: AdminUser[];
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+  }>(`/admin/users?${params.toString()}`, token, { method: "GET" });
+
+  const data = response.data!;
+  return {
+    items: data.items ?? [],
+    total: data.total,
+    page: data.page,
+    pageSize: data.page_size,
+    totalPages: data.total_pages,
+  };
 }
 
 /**
