@@ -1,5 +1,8 @@
 import axios, { AxiosError } from "axios";
 import { API_V1, type ApiResponse } from "@/lib/api";
+import { parsePlanScalePayload, type PlanScale } from "@/lib/plan-scale";
+
+export type { PlanScale } from "@/lib/plan-scale";
 
 export type DetectionKind = "opening" | "column" | "other" | "wall";
 
@@ -119,6 +122,13 @@ export type Blueprint3DPayload = {
   structural_detections: DetectionBox[];
   house_bounds: HouseBounds | null;
   openings_schedule?: OpeningsSchedule | null;
+  /**
+   * Scale the 3D model must be built with, carried on the payload rather than
+   * left on the audit alone: the viewport's wall height, door height and sill
+   * are absolute metres, so building the plan at any other scale puts the two
+   * axes on different rulers.
+   */
+  plan_scale?: PlanScale | null;
 };
 
 export type OpeningScheduleItem = {
@@ -174,6 +184,11 @@ export type RoomComplianceItem = {
 };
 
 export type ArchitecturalAudit = {
+  /**
+   * Resolved drawing scale and its provenance. Check `metricsTrustworthy`
+   * before presenting any metric finding as a measurement.
+   */
+  scale: PlanScale | null;
   wallClassifications: {
     loadBearingCount: number;
     partitionCount: number;
@@ -231,6 +246,9 @@ export type ArchitecturalAudit = {
 };
 
 export const DEFAULT_ARCHITECTURAL_AUDIT: ArchitecturalAudit = {
+  // Sample data, so it carries no measured scale — the viewport falls back to
+  // the assumed span and labels itself accordingly.
+  scale: null,
   wallClassifications: {
     loadBearingCount: 1,
     partitionCount: 2,
@@ -720,6 +738,7 @@ function normalizeArchitecturalAudit(raw: unknown): ArchitecturalAudit | null {
     String(v ?? "WARNING").toUpperCase() === "PASSED" ? "PASSED" : "WARNING";
 
   return {
+    scale: parsePlanScalePayload(data.scale),
     wallClassifications: {
       loadBearingCount: Number(walls.load_bearing_count ?? 0),
       partitionCount: Number(walls.partition_count ?? 0),
@@ -1062,15 +1081,142 @@ function extractErrorMessage(error: unknown, fallback: string): string {
  * POST /api/v1/architect/clash-detection
  * Multipart: file_arch (+ optional file_struct). Omit struct to run AI-GSL.
  */
+/**
+ * Map a `/architect/clash-detection` payload into the viewport's result shape.
+ *
+ * Split out of {@link runClashDetection} so the mapping — which decides, among
+ * other things, which scale the 3D model is built at — can be tested against a
+ * captured response without mocking the transport.
+ */
+export function mapClashPayload(
+  payload: Record<string, unknown>
+): ClashDetectionResult {
+  const isAiGenerated = Boolean(payload.is_ai_generated);
+
+  const architecturalDetections = normalizeDetections(
+    payload.architectural_detections,
+    "opening"
+  );
+  const structuralDetections = normalizeDetections(
+    payload.structural_detections,
+    "column"
+  ).map((d) =>
+    isAiGenerated || d.isAiGenerated
+      ? { ...d, isAiGenerated: true }
+      : d
+  );
+  const wallDetections = normalizeDetections(payload.walls, "wall");
+
+  const combinedFromParts = [
+    ...architecturalDetections,
+    ...structuralDetections,
+    ...wallDetections,
+  ];
+  const detections =
+    combinedFromParts.length > 0
+      ? combinedFromParts
+      : normalizeDetections(payload.detections);
+
+  const clashes = normalizeClashes(payload.clashes);
+  const fromApi = normalizeRecommendations(payload.recommendations);
+  const hasLivePayload = Boolean(
+    (Array.isArray(payload.walls) && payload.walls.length > 0) ||
+      (Array.isArray(payload.detections) && payload.detections.length > 0) ||
+      (Array.isArray(payload.architectural_detections) &&
+        payload.architectural_detections.length > 0)
+  );
+  const recommendations =
+    fromApi.length > 0
+      ? fromApi
+      : hasLivePayload
+        ? buildGcrRecommendations(clashes)
+        : buildGcrRecommendations(clashes.length ? clashes : DEFAULT_CLASHES);
+
+  const architecturalAudit =
+    normalizeArchitecturalAudit(payload.architectural_audit) ??
+    DEFAULT_ARCHITECTURAL_AUDIT;
+  const openingsSchedule = normalizeOpeningsSchedule(payload.openings_schedule);
+
+  const meta = (payload.meta ?? {}) as Record<string, unknown>;
+  const imageWidth = Number(
+    payload.image_width ?? meta.image_width ?? meta.canvas_width ?? 1024
+  );
+  const imageHeight = Number(
+    payload.image_height ?? meta.image_height ?? meta.canvas_height ?? 1024
+  );
+  const imgW = Number.isFinite(imageWidth) ? imageWidth : 1024;
+  const imgH = Number.isFinite(imageHeight) ? imageHeight : 1024;
+
+  const archOut =
+    architecturalDetections.length > 0
+      ? architecturalDetections
+      : detections.filter((d) => d.kind === "opening");
+  const structOut =
+    structuralDetections.length > 0
+      ? structuralDetections
+      : detections.filter((d) => d.kind === "column");
+  const walls = normalizeWallSegments(payload.walls, wallDetections, imgW, imgH);
+  const houseBounds =
+    normalizeHouseBounds(payload.house_bounds ?? meta.house_bounds) ??
+    houseBoundsFromWalls(walls);
+
+  const blueprint3d: Blueprint3DPayload = {
+    image_width: imgW,
+    image_height: imgH,
+    walls,
+    architectural_detections: archOut,
+    structural_detections: structOut,
+    house_bounds: houseBounds,
+    openings_schedule: openingsSchedule,
+    plan_scale: architecturalAudit?.scale ?? null,
+  };
+
+  return {
+    architecturalDetections: archOut,
+    structuralDetections: structOut,
+    walls,
+    blueprint3d,
+    // Never substitute demo detections for a live analysis payload.
+    detections,
+    clashes: clashes.length ? clashes : hasLivePayload ? [] : DEFAULT_CLASHES,
+    recommendations,
+    architecturalAudit,
+    openingsSchedule,
+    model:
+      typeof payload.model === "string"
+        ? payload.model
+        : isAiGenerated
+          ? "yolov8_architect+ai_gsl"
+          : "yolov8_architect+opencv_columns",
+    elementsDetected:
+      typeof payload.elements_detected === "number"
+        ? payload.elements_detected
+        : detections.length,
+    isAiGenerated,
+    imageWidth: imgW,
+    imageHeight: imgH,
+  };
+}
+
 export async function runClashDetection(
   archFile: File,
   structFile?: File | null,
-  token?: string
+  token?: string,
+  /**
+   * Real-world length of the longer side of the building footprint, in metres.
+   * Supplying it pins the drawing's scale exactly; omitting it leaves the
+   * backend to read dimensions off the sheet and, failing that, to fall back to
+   * an assumed span and mark every metric verdict as indicative.
+   */
+  planSpanM?: number | null
 ): Promise<ClashDetectionResult> {
   const formData = new FormData();
   formData.append("file_arch", archFile);
   if (structFile) {
     formData.append("file_struct", structFile);
+  }
+  if (typeof planSpanM === "number" && Number.isFinite(planSpanM) && planSpanM > 0) {
+    formData.append("plan_span_m", String(planSpanM));
   }
 
   try {
@@ -1090,111 +1236,7 @@ export async function runClashDetection(
       throw new Error(body.message || "Clash detection failed");
     }
 
-    const payload = (body.data ?? {}) as Record<string, unknown>;
-    const isAiGenerated = Boolean(payload.is_ai_generated);
-
-    const architecturalDetections = normalizeDetections(
-      payload.architectural_detections,
-      "opening"
-    );
-    const structuralDetections = normalizeDetections(
-      payload.structural_detections,
-      "column"
-    ).map((d) =>
-      isAiGenerated || d.isAiGenerated
-        ? { ...d, isAiGenerated: true }
-        : d
-    );
-    const wallDetections = normalizeDetections(payload.walls, "wall");
-
-    const combinedFromParts = [
-      ...architecturalDetections,
-      ...structuralDetections,
-      ...wallDetections,
-    ];
-    const detections =
-      combinedFromParts.length > 0
-        ? combinedFromParts
-        : normalizeDetections(payload.detections);
-
-    const clashes = normalizeClashes(payload.clashes);
-    const fromApi = normalizeRecommendations(payload.recommendations);
-    const hasLivePayload = Boolean(
-      (Array.isArray(payload.walls) && payload.walls.length > 0) ||
-        (Array.isArray(payload.detections) && payload.detections.length > 0) ||
-        (Array.isArray(payload.architectural_detections) &&
-          payload.architectural_detections.length > 0)
-    );
-    const recommendations =
-      fromApi.length > 0
-        ? fromApi
-        : hasLivePayload
-          ? buildGcrRecommendations(clashes)
-          : buildGcrRecommendations(clashes.length ? clashes : DEFAULT_CLASHES);
-
-    const architecturalAudit =
-      normalizeArchitecturalAudit(payload.architectural_audit) ??
-      DEFAULT_ARCHITECTURAL_AUDIT;
-    const openingsSchedule = normalizeOpeningsSchedule(payload.openings_schedule);
-
-    const meta = (payload.meta ?? {}) as Record<string, unknown>;
-    const imageWidth = Number(
-      payload.image_width ?? meta.image_width ?? meta.canvas_width ?? 1024
-    );
-    const imageHeight = Number(
-      payload.image_height ?? meta.image_height ?? meta.canvas_height ?? 1024
-    );
-    const imgW = Number.isFinite(imageWidth) ? imageWidth : 1024;
-    const imgH = Number.isFinite(imageHeight) ? imageHeight : 1024;
-
-    const archOut =
-      architecturalDetections.length > 0
-        ? architecturalDetections
-        : detections.filter((d) => d.kind === "opening");
-    const structOut =
-      structuralDetections.length > 0
-        ? structuralDetections
-        : detections.filter((d) => d.kind === "column");
-    const walls = normalizeWallSegments(payload.walls, wallDetections, imgW, imgH);
-    const houseBounds =
-      normalizeHouseBounds(payload.house_bounds ?? meta.house_bounds) ??
-      houseBoundsFromWalls(walls);
-
-    const blueprint3d: Blueprint3DPayload = {
-      image_width: imgW,
-      image_height: imgH,
-      walls,
-      architectural_detections: archOut,
-      structural_detections: structOut,
-      house_bounds: houseBounds,
-      openings_schedule: openingsSchedule,
-    };
-
-    return {
-      architecturalDetections: archOut,
-      structuralDetections: structOut,
-      walls,
-      blueprint3d,
-      // Never substitute demo detections for a live analysis payload.
-      detections,
-      clashes: clashes.length ? clashes : hasLivePayload ? [] : DEFAULT_CLASHES,
-      recommendations,
-      architecturalAudit,
-      openingsSchedule,
-      model:
-        typeof payload.model === "string"
-          ? payload.model
-          : isAiGenerated
-            ? "yolov8_architect+ai_gsl"
-            : "yolov8_architect+opencv_columns",
-      elementsDetected:
-        typeof payload.elements_detected === "number"
-          ? payload.elements_detected
-          : detections.length,
-      isAiGenerated,
-      imageWidth: imgW,
-      imageHeight: imgH,
-    };
+    return mapClashPayload((body.data ?? {}) as Record<string, unknown>);
   } catch (error) {
     throw new Error(
       extractErrorMessage(error, "Clash detection failed. Please try again.")

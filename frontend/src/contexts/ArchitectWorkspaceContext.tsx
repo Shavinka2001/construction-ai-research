@@ -52,6 +52,9 @@ type ArchitectWorkspaceContextValue = {
   setArchFile: (file: File | null) => void;
   setStructFile: (file: File | null) => void;
   archPreviewUrl: string | null;
+  /** Operator-stated footprint span in metres; null leaves the scale to the backend. */
+  planSpanM: number | null;
+  setPlanSpanM: (span: number | null) => void;
   analyzing: boolean;
   analysisError: string | null;
   hasLiveResult: boolean;
@@ -102,6 +105,7 @@ export function ArchitectWorkspaceProvider({
   const [archFile, setArchFile] = useState<File | null>(null);
   const [structFile, setStructFile] = useState<File | null>(null);
   const [archPreviewUrl, setArchPreviewUrl] = useState<string | null>(null);
+  const [planSpanM, setPlanSpanM] = useState<number | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [hasLiveResult, setHasLiveResult] = useState(false);
@@ -268,7 +272,7 @@ export function ArchitectWorkspaceProvider({
     setHighlightedDetectionId(null);
 
     try {
-      const result = await runClashDetection(archFile, null, token);
+      const result = await runClashDetection(archFile, null, token, planSpanM);
       setDetections(result.detections);
       setClashes(result.clashes);
       setRecommendations(result.recommendations);
@@ -303,7 +307,7 @@ export function ArchitectWorkspaceProvider({
     } finally {
       setAnalyzing(false);
     }
-  }, [activeProject, archFile, analyzing, token, showToast]);
+  }, [activeProject, archFile, analyzing, token, planSpanM, showToast]);
 
   const applyResolution = useCallback(
     (recommendation: GcrRecommendation) => {
@@ -364,6 +368,8 @@ export function ArchitectWorkspaceProvider({
       createError,
       handleCreateProject,
       archFile,
+      planSpanM,
+      setPlanSpanM,
       structFile,
       setArchFile,
       setStructFile,
@@ -403,6 +409,8 @@ export function ArchitectWorkspaceProvider({
       createError,
       handleCreateProject,
       archFile,
+      planSpanM,
+      setPlanSpanM,
       structFile,
       archPreviewUrl,
       analyzing,

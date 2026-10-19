@@ -24,6 +24,9 @@ type ClashPlanUploadSectionProps = {
   error?: string | null;
   enabled?: boolean;
   lockedMessage?: string;
+  /** Operator-stated footprint span in metres, or null to let the backend decide. */
+  planSpanM?: number | null;
+  onPlanSpanChange?: (span: number | null) => void;
 };
 
 function formatBytes(bytes: number): string {
@@ -45,6 +48,8 @@ export function ClashPlanUploadSection({
   error,
   enabled = true,
   lockedMessage = "Select an active project to unlock blueprint uploads.",
+  planSpanM = null,
+  onPlanSpanChange,
 }: ClashPlanUploadSectionProps) {
   const inputId = useId();
   const [isDragging, setIsDragging] = useState(false);
@@ -200,6 +205,47 @@ export function ClashPlanUploadSection({
           >
             {slotError || error}
           </p>
+        )}
+
+        {onPlanSpanChange && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+            <label
+              htmlFor={`${inputId}-span`}
+              className="block text-xs font-bold uppercase tracking-wider text-slate-700"
+            >
+              Footprint span (metres)
+            </label>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+              The real length of the building&apos;s longer side. This sets the
+              drawing scale, which every area, window-to-floor ratio and wall
+              thickness is measured against. Leave it blank and the scale is
+              read off the sheet if possible — otherwise it is assumed, and the
+              measurements are reported as indicative only.
+            </p>
+            <input
+              id={`${inputId}-span`}
+              type="number"
+              inputMode="decimal"
+              min={1}
+              max={200}
+              step={0.1}
+              disabled={!enabled || analyzing}
+              value={planSpanM ?? ""}
+              onChange={(event) => {
+                const raw = event.target.value.trim();
+                if (raw === "") {
+                  onPlanSpanChange(null);
+                  return;
+                }
+                const parsed = Number.parseFloat(raw);
+                onPlanSpanChange(
+                  Number.isFinite(parsed) && parsed > 0 ? parsed : null
+                );
+              }}
+              placeholder="e.g. 12.0 — optional"
+              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#D4AF37] focus:outline-none focus:ring-1 focus:ring-[#D4AF37] disabled:cursor-not-allowed disabled:bg-slate-100"
+            />
+          </div>
         )}
 
         <button

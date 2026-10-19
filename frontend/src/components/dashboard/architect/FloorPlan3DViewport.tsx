@@ -4,9 +4,17 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
-import { Eye, Footprints, Moon, Sun, X } from "lucide-react";
+import { AlertTriangle, Eye, Footprints, Moon, Ruler, Sun, X } from "lucide-react";
 import { OpeningsScheduleCard } from "@/components/dashboard/architect/OpeningsScheduleCard";
 import type { DetectionBox, OpeningsSchedule } from "@/lib/clash-detection";
+import {
+  ASSUMED_PLAN_SPAN_M,
+  framingCameraPosition,
+  parsePlanScalePayload,
+  planScaleLabel,
+  resolvePlanScale,
+  type PlanScale,
+} from "@/lib/plan-scale";
 import {
   MIN_WALL_RUN_M,
   anchorOpeningToRun,
@@ -97,6 +105,11 @@ export type Blueprint3DData = {
   structural_detections?: BlueprintDetection[];
   house_bounds?: HouseBounds | null;
   openings_schedule?: OpeningsSchedule | null;
+  /**
+   * Drawing scale resolved by the backend audit. Absent on an older payload,
+   * in which case the footprint is normalised to the assumed span instead.
+   */
+  plan_scale?: PlanScale | null;
 };
 
 export interface FloorPlan3DViewportProps {
@@ -295,15 +308,24 @@ function disposeMaterials(m: HouseMaterials) {
 type CoordMap = {
   imgW: number;
   imgH: number;
+  /** Metres per blueprint pixel actually used to build the model. */
   scale: number;
+  /** The resolved scale plus its provenance, for the viewport badge. */
+  planScale: PlanScale;
   toX: (px: number) => number;
   toZ: (py: number) => number;
 };
 
 type PixelBounds = { minX: number; minY: number; maxX: number; maxY: number };
 
-/** Longest world-space dimension the plan is fitted into, in metres. */
-const PLAN_WORLD_SPAN = 18;
+/**
+ * Longest world-space dimension the plan is fitted into when no measured scale
+ * is available, in metres. See `@/lib/plan-scale` — this is the fallback only;
+ * a measured scale from the backend takes precedence and is what makes the
+ * horizontal geometry agree with the absolute-metre wall height, door height
+ * and sill constants below.
+ */
+const PLAN_WORLD_SPAN = ASSUMED_PLAN_SPAN_M;
 /** Bathtubs, closets, and stair treads — not structural room dividers (px on 1024²). */
 const MIN_INTERIOR_PARTITION_PX = 55;
 /** Exterior shell classification tolerance — mirrors backend PERIMETER_WALL_TOL_PX. */
@@ -347,11 +369,19 @@ function houseBoundsToPixelBounds(
  * Map blueprint pixels to world metres, centred on the *house* rather than the
  * paper. The drawing sheet is larger than the building and rarely concentric
  * with it, so centring on the canvas offsets every wall, door and window.
+ *
+ * When the backend resolved a real scale for the drawing, that is used. Only
+ * when it could not is the footprint normalised to `PLAN_WORLD_SPAN`, which
+ * renders every building the same size whatever its true dimensions — fine for
+ * a thumbnail, wrong for a walkthrough, because the wall height, door height
+ * and sill constants in this file are absolute metres and would no longer be
+ * in proportion with the rooms around them.
  */
 function createCoordMap(
   imgW: number,
   imgH: number,
-  house?: PixelBounds | null
+  house?: PixelBounds | null,
+  apiScale?: PlanScale | null
 ): CoordMap {
   let centerX = imgW / 2;
   let centerY = imgH / 2;
@@ -366,11 +396,13 @@ function createCoordMap(
     }
   }
 
-  const scale = PLAN_WORLD_SPAN / Math.max(span, 1);
+  const planScale = resolvePlanScale(apiScale, span);
+  const scale = planScale.metersPerPixel;
   return {
     imgW,
     imgH,
     scale,
+    planScale,
     toX: (px: number) => (px - centerX) * scale,
     toZ: (py: number) => (py - centerY) * scale,
   };
@@ -1093,11 +1125,23 @@ function resolveBlueprintData(
   const rawBounds = (raw ?? {}) as {
     house_bounds?: HouseBounds | null;
     meta?: { house_bounds?: HouseBounds | null };
+    plan_scale?: unknown;
+    scale?: unknown;
+    architectural_audit?: { scale?: unknown };
   };
   const houseBounds =
     data.house_bounds ??
     rawBounds.house_bounds ??
     rawBounds.meta?.house_bounds ??
+    null;
+
+  // The scale may arrive already parsed on the payload, or still as the raw
+  // backend block — either nested under the audit it belongs to, or hoisted.
+  const planScale =
+    data.plan_scale ??
+    parsePlanScalePayload(rawBounds.plan_scale) ??
+    parsePlanScalePayload(rawBounds.architectural_audit?.scale) ??
+    parsePlanScalePayload(rawBounds.scale) ??
     null;
 
   return {
@@ -1111,6 +1155,7 @@ function resolveBlueprintData(
       (raw as Blueprint3DData).openings_schedule ??
       (raw as { openings_schedule?: OpeningsSchedule }).openings_schedule ??
       null,
+    plan_scale: planScale,
   };
 }
 
@@ -1634,6 +1679,10 @@ type HouseBuildResult = {
   doorsMounted: number;
   windowsMounted: number;
   walkthroughNav: WalkthroughNavPoint[];
+  /** World-space envelope of the built house, for framing the camera. */
+  bounds: WallBounds;
+  /** Scale the model was built with, for the viewport badge. */
+  planScale: PlanScale;
 };
 
 type InferredRoom = {
@@ -2240,7 +2289,12 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuild
   const housePx =
     pixelBoundsFromWalls(data.walls) ?? houseBoundsToPixelBounds(data.house_bounds);
   const structuralWalls = filterStructuralWallSegments(data.walls, housePx);
-  const { toX, toZ, scale } = createCoordMap(imgW, imgH, housePx);
+  const { toX, toZ, scale, planScale } = createCoordMap(
+    imgW,
+    imgH,
+    housePx,
+    data.plan_scale
+  );
   const minInteriorM = MIN_INTERIOR_PARTITION_PX * scale;
 
   // 1) Blueprint pixels -> world runs (fixture outlines already removed)
@@ -2278,6 +2332,8 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuild
       doorsMounted: 0,
       windowsMounted: 0,
       walkthroughNav: [],
+      bounds: { minX: 0, maxX: 0, minZ: 0, maxZ: 0 },
+      planScale,
     };
   }
 
@@ -2487,6 +2543,8 @@ function buildDynamicHouse(ctx: BuildContext, data: Blueprint3DData): HouseBuild
     doorsMounted,
     windowsMounted,
     walkthroughNav,
+    bounds: closedBounds,
+    planScale,
   };
 }
 
@@ -2530,6 +2588,7 @@ export function FloorPlan3DViewport({
   const [showDimensions, setShowDimensions] = useState(true);
   const [isWalkthrough, setIsWalkthrough] = useState(false);
   const [currentRoomLabel, setCurrentRoomLabel] = useState("Interior");
+  const [planScale, setPlanScale] = useState<PlanScale | null>(null);
   const [activeNavId, setActiveNavId] = useState<string | null>(null);
   const [walkthroughNavPoints, setWalkthroughNavPoints] = useState<WalkthroughNavPoint[]>([]);
   const currentRoomRef = useRef("Interior");
@@ -2685,12 +2744,29 @@ export function FloorPlan3DViewport({
       }
       houseGroup.add(built.dimensionsGroup);
       scene.add(houseGroup);
+
+      // A true-scale model is no longer a fixed size, so the camera has to be
+      // placed from the geometry rather than parked at a constant that only
+      // suited an 18 m-wide normalised house.
+      setPlanScale(built.planScale);
+      const framed = framingCameraPosition(
+        built.bounds,
+        WALL_HEIGHT,
+        camera.fov,
+        camera.aspect
+      );
+      camera.position.set(framed[0], framed[1], framed[2]);
+      const centreX = (built.bounds.minX + built.bounds.maxX) / 2;
+      const centreZ = (built.bounds.minZ + built.bounds.maxZ) / 2;
+      controls.target.set(centreX, WALL_HEIGHT * 0.4, centreZ);
+      controls.update();
     } else {
       roofGroupRef.current = null;
       dimensionsGroupRef.current = null;
       walkthroughNavRef.current = [];
       walkthroughZonesRef.current = [];
       setWalkthroughNavPoints([]);
+      setPlanScale(null);
     }
 
     const walkClock = new THREE.Clock();
@@ -2990,6 +3066,23 @@ export function FloorPlan3DViewport({
                 ? "No wall segments in analysis result — re-run detection on a clearer floor plan"
                 : "Upload a blueprint and run analysis to generate a live 3D floor plan"}
           </p>
+          {planScale && hasRealWalls ? (
+            <p
+              className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                planScale.isMeasured
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-amber-200 bg-amber-50 text-amber-900"
+              }`}
+              title={planScale.detail}
+            >
+              {planScale.isMeasured ? (
+                <Ruler className="h-3 w-3" />
+              ) : (
+                <AlertTriangle className="h-3 w-3" />
+              )}
+              {planScaleLabel(planScale)}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

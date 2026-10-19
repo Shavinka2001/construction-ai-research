@@ -83,6 +83,8 @@ export function BlueprintParserWorkspace() {
     activeProject,
     archFile,
     setArchFile,
+    planSpanM,
+    setPlanSpanM,
     archPreviewUrl,
     analyzing,
     analysisError,
@@ -250,6 +252,8 @@ export function BlueprintParserWorkspace() {
         analyzing={analyzing}
         error={analysisError}
         enabled={Boolean(activeProject)}
+        planSpanM={planSpanM}
+        onPlanSpanChange={setPlanSpanM}
         lockedMessage="Select or create an active project to unlock blueprint upload."
       />
 
