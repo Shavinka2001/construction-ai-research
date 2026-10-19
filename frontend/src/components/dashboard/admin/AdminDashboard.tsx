@@ -79,7 +79,8 @@ export function AdminDashboard({ user }: AdminDashboardProps) {
           contact_number: data.contact_number,
           password: data.password,
           role: data.role,
-        })
+        }),
+        user.token
       );
       setModalOpen(false);
       await loadUsers();

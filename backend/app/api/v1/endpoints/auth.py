@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -5,8 +7,10 @@ from sqlalchemy.orm import Session
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.database import get_db
 from app.models.user import User
+from app.models.user_role import SELF_SERVICE_ROLE
+from app.models.user_status import UserStatus
 from app.schemas.response import ApiResponse, ErrorDetail, error_response, success_response
-from app.schemas.user import Token, UserCreate, UserLogin, UserOut
+from app.schemas.user import Token, UserLogin, UserOut, UserRegister
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -15,9 +19,15 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
     "/register",
     response_model=ApiResponse[UserOut],
     status_code=status.HTTP_201_CREATED,
-    summary="Register a new user",
+    summary="Register a new client account",
+    description=(
+        "Self-service registration. Always creates a "
+        f"`{SELF_SERVICE_ROLE.value}` account — the role is not accepted from "
+        "the request. Professional and administrator accounts are created by "
+        "an existing administrator via `POST /admin/users`."
+    ),
 )
-def register(user_in: UserCreate, db: Session = Depends(get_db)):
+def register(user_in: UserRegister, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == user_in.email).first()
     if existing:
         return JSONResponse(
@@ -39,7 +49,10 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         full_name=user_in.full_name,
         contact_number=user_in.contact_number,
         hashed_password=hash_password(user_in.password),
-        role=user_in.role,
+        # Not taken from the request: a self-service registration can only ever
+        # produce a client, whatever the caller sends.
+        role=SELF_SERVICE_ROLE,
+        status=UserStatus.ACTIVE,
     )
     db.add(user)
     db.commit()
@@ -71,6 +84,29 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
                 ],
             ),
         )
+
+    if not user.status.can_sign_in:
+        # Distinct from INVALID_CREDENTIALS: the password was right, so telling
+        # the person their account is suspended is what lets them contact an
+        # administrator instead of resetting a password that already works.
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content=error_response(
+                message="Account unavailable",
+                errors=[
+                    ErrorDetail(
+                        code="ACCOUNT_SUSPENDED",
+                        message=(
+                            "This account has been suspended. Contact a "
+                            "platform administrator to restore access."
+                        ),
+                    )
+                ],
+            ),
+        )
+
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
 
     access_token = create_access_token(
         data={
