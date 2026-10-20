@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { Check, AlertTriangle, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -12,40 +13,75 @@ type ComplianceCheck = {
   detail: string;
 };
 
-const CHECKS: ComplianceCheck[] = [
-  {
+function deriveChecks(inspectionText: string): ComplianceCheck[] {
+  const text = inspectionText.toLowerCase();
+  const checks: ComplianceCheck[] = [];
+
+  const setbackOk =
+    text.includes("setback") &&
+    (text.includes("verified") ||
+      text.includes("compliant") ||
+      text.includes("3.") ||
+      text.includes("2.8"));
+  checks.push({
     id: "setback",
     title: "Setback Restrictions",
-    status: "PASSED",
-    detail:
-      "Front: 3.1m, Rear: 2.6m — minimum required is 3m / 2.5m.",
-  },
-  {
+    status: setbackOk
+      ? "PASSED"
+      : text.includes("setback") && text.includes("below")
+        ? "WARNING"
+        : text.includes("setback")
+          ? "PASSED"
+          : "WARNING",
+    detail: setbackOk
+      ? "Front and rear setbacks meet minimum UDA / MC requirements."
+      : "Review setback measurements against local authority minimums.",
+  });
+
+  const farOk =
+    text.includes("far") &&
+    (text.includes("within") || text.includes("1.3") || text.includes("compliant"));
+  checks.push({
     id: "far",
     title: "Floor Area Ratio (FAR)",
-    status: "PASSED",
-    detail:
-      "Zoning limit allows FAR 1.5; submitted plan is FAR 1.3.",
-  },
-  {
+    status: farOk ? "PASSED" : text.includes("exceeds") ? "FAILED" : "WARNING",
+    detail: farOk
+      ? "Submitted FAR is within the zoning envelope."
+      : "Verify FAR against the applicable zoning schedule.",
+  });
+
+  const roadIssue =
+    text.includes("road") &&
+    (text.includes("below") || text.includes("11ft"));
+  checks.push({
     id: "road",
     title: "Road Width Requirement",
-    status: "WARNING",
-    detail:
-      "Road is 11ft; minimum required is 12ft. Dynamic set-back fine calculated: LKR 15,000.",
-  },
-  {
+    status: roadIssue ? "WARNING" : "PASSED",
+    detail: roadIssue
+      ? "Access road width may be below the 12ft minimum — dynamic setback fine may apply."
+      : "Road access width meets or exceeds the minimum requirement.",
+  });
+
+  const envRisk =
+    text.includes("flood") ||
+    text.includes("wetland") ||
+    text.includes("no eia");
+  checks.push({
     id: "env",
     title: "Environmental Constraints",
-    status: "PASSED",
-    detail:
-      "No wetlands or protected boundaries intersected.",
-  },
-];
+    status: envRisk ? "FAILED" : "PASSED",
+    detail: envRisk
+      ? "Environmental overlay or missing EIA flagged — requires specialist review."
+      : "No wetlands or protected boundaries intersected.",
+  });
+
+  return checks;
+}
 
 type ComplianceAdvisoryPanelProps = {
   projectName: string;
   complianceScore: number;
+  inspectionText: string;
 };
 
 function StatusIcon({ status }: { status: CheckStatus }) {
@@ -99,21 +135,23 @@ function StatusLabel({ status }: { status: CheckStatus }) {
 export function ComplianceAdvisoryPanel({
   projectName,
   complianceScore,
+  inspectionText,
 }: ComplianceAdvisoryPanelProps) {
-  const passedCount = CHECKS.filter((c) => c.status === "PASSED").length;
-  const warningCount = CHECKS.filter((c) => c.status === "WARNING").length;
+  const checks = deriveChecks(inspectionText);
+  const passedCount = checks.filter((c) => c.status === "PASSED").length;
+  const warningCount = checks.filter((c) => c.status === "WARNING").length;
 
   return (
-    <div className="flex h-full max-h-[560px] flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-luxury lg:max-h-none">
+    <div className="flex max-h-[480px] flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-luxury lg:max-h-none">
       <div className="border-b border-slate-100 bg-slate-900 px-5 py-4">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">
-          AI Compliance Advisory
+          Rules Check
         </p>
-        <h2 className="mt-1 text-lg font-bold text-white">Rules Check</h2>
+        <h2 className="mt-1 text-lg font-bold text-white">Compliance Advisory</h2>
         <p className="mt-1 truncate text-xs text-slate-400">{projectName}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center rounded-full border border-gold/40 bg-gold/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gold">
-            {complianceScore}% Compliant
+            {complianceScore}% Score
           </span>
           <span className="text-[10px] font-medium text-slate-500">
             {passedCount} passed · {warningCount} warning
@@ -123,9 +161,12 @@ export function ComplianceAdvisoryPanel({
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
-        {CHECKS.map((check) => (
-          <div
+        {checks.map((check, index) => (
+          <motion.div
             key={check.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.06 }}
             className={cn(
               "rounded-xl border p-4 transition-colors",
               check.status === "PASSED" && "border-slate-100 bg-slate-50/60",
@@ -149,7 +190,7 @@ export function ComplianceAdvisoryPanel({
                 </p>
               </div>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>

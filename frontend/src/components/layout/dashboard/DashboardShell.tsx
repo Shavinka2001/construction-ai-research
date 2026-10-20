@@ -1,16 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { DashboardSidebar } from "@/components/layout/dashboard/DashboardSidebar";
 import { DashboardNavbar } from "@/components/layout/dashboard/DashboardNavbar";
+import { AuthorityShell } from "@/components/layout/authority/AuthorityShell";
 import { ArchitectWorkspaceProvider } from "@/contexts/ArchitectWorkspaceContext";
 import { getAuthSession, type AuthUser } from "@/lib/auth";
 import { AUTH_STORAGE_KEY } from "@/lib/session-guard";
 
+function authorityHeaderTitle(pathname: string): string {
+  if (pathname.startsWith("/dashboard/applications")) {
+    return "Pending Applications";
+  }
+  if (pathname.startsWith("/dashboard/regulatory-checker")) {
+    return "Regulatory Checker";
+  }
+  return "Overview";
+}
+
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [ready, setReady] = useState(false);
@@ -24,7 +37,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     }
     const session = getAuthSession();
     if (!session?.token) {
-      // getAuthSession() drops an expired token — tell the user why.
       router.replace(hadStoredSession ? "/login?session=expired" : "/login");
       return;
     }
@@ -37,6 +49,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <Loader2 className="h-8 w-8 animate-spin text-gold" aria-label="Loading" />
       </div>
+    );
+  }
+
+  if (user.role === "AUTHORITY") {
+    return (
+      <AuthorityShell
+        user={user}
+        headerTitle={authorityHeaderTitle(pathname)}
+      >
+        {children}
+      </AuthorityShell>
     );
   }
 

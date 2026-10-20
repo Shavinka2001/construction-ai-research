@@ -31,6 +31,7 @@ earthengine-api>=1.1.0
 # app/ml/ is a scikit-learn artifact, so the major version is pinned: loading
 # a pipeline across a major release warns and can change behaviour. Re-run
 # research/component3/02_train_evaluate.py before moving this pin.
+# Supersedes the unbounded `scikit-learn>=1.5.0` the compliance prototype used.
 scikit-learn>=1.9.0,<2.0.0
 pandas>=2.2.0
 joblib>=1.4.0
