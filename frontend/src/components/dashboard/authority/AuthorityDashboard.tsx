@@ -11,10 +11,18 @@ import { AuthorityReviewQueue } from "@/components/dashboard/authority/Authority
 import { AiAssessmentPanel } from "@/components/dashboard/authority/AiAssessmentPanel";
 import { StepGeospatialIdentification } from "@/components/compliance-workflow/StepGeospatialIdentification";
 import { StepDocumentVerification } from "@/components/compliance-workflow/StepDocumentVerification";
+import { SubmissionReadinessPanel } from "@/components/compliance-workflow/SubmissionReadinessPanel";
 
 type AuthorityDashboardProps = {
   user: AuthUser;
 };
+
+/**
+ * Only the condition this jurisdiction settles. Everything omitted stays
+ * unknown, so its requirement is reported as manual review rather than being
+ * assumed not to apply.
+ */
+const MATARA_CONTEXT = { in_cmc_area: false } as const;
 
 export function AuthorityDashboard({ user }: AuthorityDashboardProps) {
   const displayName = getDisplayName(user);
@@ -76,6 +84,11 @@ export function AuthorityDashboard({ user }: AuthorityDashboardProps) {
           </div>
 
           <AiAssessmentPanel useWorkflow />
+
+          {/* Rule-based readiness against the official requirements dataset.
+              Sits beside the v1 classifier rather than replacing it: swapping
+              it out needs a submission store the system does not have yet. */}
+          <SubmissionReadinessPanel context={MATARA_CONTEXT} />
         </div>
       </div>
     </div>

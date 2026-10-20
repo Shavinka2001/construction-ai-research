@@ -112,12 +112,13 @@ not apply", which is the ordering a user sees:
   mandatory for a Building Permit and 2 for a Certificate of Conformity, plus
   whichever conditional requirements a case triggers. Applicable totals run 9–17
   and 7–8 respectively.
-- Those requirement rows are **candidates**. Each carries an official
-  `source_url` and `source_section`, but `verified_date` is empty until someone
-  opens the source and confirms it applies in Matara. Two rows
-  (`REQ-BP-010`, `REQ-BP-011`) carry a condition written for the CMC area and
-  need a Matara equivalent. Re-run the generator and this comparison after the
-  dataset is verified.
+- Each requirement row carries an official `source_url`, `source_section` and a
+  `verified_date` of 2026-10-20. That date records that the UDA source was
+  opened and the wording extracted from it on that date. It does **not** record
+  that the requirement applies in Matara, which is still open: `REQ-BP-010` and
+  `REQ-BP-011` carry a condition written for the CMC area and need a Matara
+  equivalent, and whether the local authority adds requirements on top of the
+  UDA list is unestablished. See `research/component3/source_register.md`.
 
 ## History
 

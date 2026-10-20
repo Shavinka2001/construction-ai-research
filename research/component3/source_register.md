@@ -7,19 +7,45 @@ it turns the whole traceability claim into a liability.
 **Scope:** Building Permit and Certificate of Conformity, Matara jurisdiction.
 Target size is 14–18 requirements across both types. Quality over count.
 
+## What `verified_date` means here
+
+All 34 rows carry `2026-10-20`. That date records one specific thing: the UDA
+source document was opened on that date and the requirement text was extracted
+from it, so the wording in the dataset matches the wording in the source.
+
+It does **not** record that the requirement applies in Matara. That is a
+separate claim and it is still outstanding. Two things in particular:
+
+- `REQ-BP-010` and `REQ-BP-011` carry the condition "If the proposed building is
+  situated in CMC area", which is Colombo Municipal Council. Matara needs its
+  own equivalent condition, or these two rows need removing for this
+  jurisdiction.
+- The UDA list applies to declared urban development areas. Whether Matara
+  Municipal Council or the relevant Pradeshiya Sabha adds local requirements on
+  top is not established by this source.
+
+So the dataset is traceable and its wording is faithful, and the validator
+passes on that basis. Sources S1 and S2 below — the Matara application forms —
+close the applicability gap, and they are the two still unticked.
+
 ## Status
 
 | # | Source | Type | Covers | Collected | Verified on |
 | --- | --- | --- | --- | --- | --- |
 | S1 | Matara MC/PS building permit application form | Primary | Building Permit checklist | ☐ | |
 | S2 | Matara MC/PS CoC application form | Primary | CoC checklist | ☐ | |
-| S3 | UDA One Stop Unit — `osu.uda.lk` | Secondary | Online submission requirements | ☐ | |
-| S4 | UDA Planning & Development Regulations (Gazette) | Primary | Statutory basis, section numbers | ☐ | |
-| S5 | NBRO clearance requirement (conditional trigger) | Primary | When landslide clearance applies | ☐ | |
+| S3 | [UDA Development Approval Process (PDF)](https://www.uda.gov.lk/attachments/help/Instructions%20Webpage-%20PDF.pdf) | Primary | All 34 rows currently in the dataset | ☑ | 2026-10-20 |
+| S4 | [UDA One Stop Unit guidelines](https://osu.uda.lk/Guidelines.aspx?n=1) | Secondary | Cross-check of the same list | ☑ | 2026-10-20 |
+| S5 | [UDA Planning & Development Regulations](https://www.uda.gov.lk/upload/attach/Planning%20and%20Development%20Regulations.pdf) | Primary | Statutory basis, section numbers | ☐ | |
+| S6 | NBRO clearance requirement (conditional trigger) | Primary | When landslide clearance applies | ☐ | |
 
-Tick each box as it is collected and fill the date actually checked. None of the
-URLs above has been verified for current content by this project yet, and
-regulations change — the date column is the point of the exercise.
+S3 is where every current row came from. The two sections used are
+"What Are the Information Required for Applying for Development Permit?" and
+"What are the information required to apply for a Certificate of Conformity?",
+and both are recorded in each row's `source_section`.
+
+S1, S2, S5 and S6 are still open. Regulations change, so re-check S3 and S4 and
+move their dates forward rather than trusting this entry indefinitely.
 
 ## How to collect, best method first
 
