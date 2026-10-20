@@ -1,0 +1,25 @@
+{
+  "naive_policy": {
+    "description": "Label is a deterministic tercile cut on the same weighted evidence the model receives as features.",
+    "rows": 1728,
+    "macro_f1": {
+      "rule": 0.7062,
+      "logistic": 0.9169,
+      "forest": 0.8858,
+      "forest_unrestricted": 0.9201
+    },
+    "ceiling": 0.9201
+  },
+  "adopted_policy": {
+    "description": "Three latent factors withheld from the features; labels sampled from class probabilities. See labelling_policy.md.",
+    "rows": 1728,
+    "macro_f1": {
+      "rule": 0.6087,
+      "logistic": 0.6526,
+      "forest": 0.6072,
+      "forest_unrestricted": 0.6021
+    },
+    "ceiling": 0.6021
+  },
+  "reading": "Under the naive policy the label is a deterministic function of the features, so a learner recovers the generator's own formula and the score approaches its ceiling. Reporting that number would describe the generator, not the difficulty of the task. The adopted policy withholds three factors that are genuinely unobservable at submission time, which caps attainable performance well short of 1.0. The lower number is the honest one."
+}

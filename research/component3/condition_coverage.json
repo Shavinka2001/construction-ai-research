@@ -1,0 +1,39 @@
+{
+  "building_permit": {
+    "total_requirements": 22,
+    "by_source": {
+      "always": 8,
+      "project_record": 9,
+      "document_ocr": 2,
+      "geospatial": 1,
+      "local_authority": 2
+    },
+    "decidable_today": 8,
+    "coverage_today": 0.364,
+    "coverage_if_all_modules_integrated": 0.909,
+    "gain_per_module": {
+      "project_record": 9,
+      "document_ocr": 2,
+      "geospatial": 1
+    },
+    "never_decidable_by_the_system": 2
+  },
+  "coc": {
+    "total_requirements": 12,
+    "by_source": {
+      "always": 2,
+      "project_record": 10
+    },
+    "decidable_today": 2,
+    "coverage_today": 0.167,
+    "coverage_if_all_modules_integrated": 1.0,
+    "gain_per_module": {
+      "project_record": 10,
+      "document_ocr": 0,
+      "geospatial": 0
+    },
+    "never_decidable_by_the_system": 0
+  },
+  "_reading": "Coverage today counts only requirements the system can settle without asking a person. The remainder are not errors: the rule engine reports them as manual review with the condition text and the official source, which is the designed behaviour. The gap between today and full integration is an engineering backlog. What is left after that is a regulatory gap, not an engineering one: the published condition does not resolve for this jurisdiction at all.",
+  "_currently_supplied_keys": []
+}
