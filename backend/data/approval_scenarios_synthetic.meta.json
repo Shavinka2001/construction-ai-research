@@ -1,0 +1,20 @@
+{
+  "synthetic": true,
+  "seed": 20261020,
+  "generator": "research/component3/01_generate_synthetic.py",
+  "labelling_policy": "research/component3/labelling_policy.md",
+  "rows": 1728,
+  "templates": 96,
+  "variants_per_template": 18,
+  "class_counts": {
+    "low": 241,
+    "medium": 666,
+    "high": 821
+  },
+  "latent_factors_not_exported": [
+    "drawing_complexity",
+    "condition_ambiguity",
+    "applicant_type"
+  ],
+  "warning": "Labels are generated, not observed. Metrics measure how learnable the labelling policy is, not real approval or rework outcomes."
+}

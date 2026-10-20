@@ -1,0 +1,25 @@
+{
+  "model_version": "submission_risk_v1",
+  "selected_model": "logistic",
+  "sklearn_version": "1.9.0",
+  "classes": [
+    "low",
+    "medium",
+    "high"
+  ],
+  "categorical_features": [
+    "application_type"
+  ],
+  "numeric_features": [
+    "required_document_count",
+    "submitted_document_count",
+    "missing_document_count",
+    "document_mismatch_count",
+    "expired_document_count",
+    "unverified_document_count",
+    "conditional_clearance_required",
+    "conditional_clearance_submitted"
+  ],
+  "input": "pandas.DataFrame with exactly these columns, any order",
+  "note": "Preprocessing is inside the pipeline. Never call the classifier directly."
+}

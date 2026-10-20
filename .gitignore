@@ -1,0 +1,4 @@
+# Python bytecode, anywhere in the repo.
+# backend/.gitignore already covers the backend; research/ scripts need it too.
+__pycache__/
+*.py[cod]

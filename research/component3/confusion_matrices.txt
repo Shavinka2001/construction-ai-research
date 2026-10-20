@@ -1,0 +1,23 @@
+dummy
+                 low    medium      high
+       low         0         0        73
+    medium         0         0       154
+      high         0         0       133
+
+rule
+                 low    medium      high
+       low        33        38         2
+    medium        16       104        34
+      high         1        45        87
+
+logistic
+                 low    medium      high
+       low        37        36         0
+    medium        24       103        27
+      high         1        31       101
+
+forest
+                 low    medium      high
+       low        58        15         0
+    medium        64        72        18
+      high         5        41        87
