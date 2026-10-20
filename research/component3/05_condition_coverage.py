@@ -98,10 +98,22 @@ CONDITION_SOURCES: dict[str, tuple[str, str]] = {
 
 SOURCE_ORDER = ["always", "project_record", "document_ocr", "geospatial", "local_authority"]
 
-#: Condition keys the running system can supply today. Everything else is
-#: reported as manual review by the rule engine, which is the correct
-#: behaviour and also the thing this script quantifies.
-CURRENTLY_SUPPLIED: set[str] = set()
+#: Condition keys the running system supplies today, from project attributes
+#: captured at project creation. Kept in sync with DERIVABLE_KEYS in
+#: app/services/submission_readiness/project_context.py — the test suite
+#: asserts the numbers this produces.
+#:
+#: Everything else is reported as manual review by the rule engine, which is
+#: the correct behaviour and also the thing this script quantifies.
+CURRENTLY_SUPPLIED: set[str] = {
+    "non_residential_or_apartment",
+    "is_condominium",
+    "applicant_is_organization",
+    "ppc_available",
+    "declarations_applicable",
+    "activity_is_building_construction",
+    "activity_is_land_subdivision",
+}
 
 
 def load_rows() -> list[dict[str, str]]:
@@ -147,8 +159,16 @@ def main() -> None:
         gains: dict[str, int] = {}
         running = decidable_now
         for source in ("project_record", "document_ocr", "geospatial"):
-            gains[source] = counts[source]
-            running += counts[source]
+            # Only count what is not already supplied.
+            outstanding = sum(
+                1
+                for r in group
+                if r["condition_key"]
+                and CONDITION_SOURCES[r["condition_key"]][0] == source
+                and r["condition_key"] not in CURRENTLY_SUPPLIED
+            )
+            gains[source] = outstanding
+            running += outstanding
 
         report[app_type] = {
             "total_requirements": total,
@@ -178,14 +198,24 @@ def main() -> None:
     for app_type in sorted(by_type):
         data = report[app_type]  # type: ignore[index]
         print(f"\n{app_type}  ({data['total_requirements']} requirements)")
-        print(f"  decidable today            {data['decidable_today']:>3}"
-              f"   ({data['coverage_today']:.0%})")
-        for source, n in data["by_source"].items():
-            if source == "always":
-                continue
-            print(f"    + {source:<22} {n:>3}")
-        print(f"  if all modules integrated      ({data['coverage_if_all_modules_integrated']:.0%})")
-        print(f"  never decidable by the system  {data['never_decidable_by_the_system']}")
+        print(
+            f"  decidable today              {data['decidable_today']:>3}"
+            f"   ({data['coverage_today']:.0%})"
+        )
+        outstanding = {s: n for s, n in data["gain_per_module"].items() if n}
+        if outstanding:
+            print("  would be added by wiring up:")
+            for source, n in outstanding.items():
+                print(f"    {source:<24} {n:>3}")
+            print(
+                f"  if all modules integrated        "
+                f"({data['coverage_if_all_modules_integrated']:.0%})"
+            )
+        else:
+            print("  nothing left for the unbuilt modules to add")
+        print(
+            f"  never decidable by the system  {data['never_decidable_by_the_system']:>3}"
+        )
 
     print(f"\nwrote {HERE / 'condition_coverage.json'}")
 

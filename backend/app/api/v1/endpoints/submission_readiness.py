@@ -36,6 +36,10 @@ from app.schemas.submission_readiness import (
 )
 from app.services.submission_readiness import risk_model
 from app.services.submission_readiness.assessment import assess_application
+from app.services.submission_readiness.project_context import (
+    derive_context,
+    merge_context,
+)
 from app.services.submission_readiness.requirements_repo import (
     condition_keys,
     for_application_type,
@@ -138,9 +142,17 @@ def assess(
     user_id: int = Depends(get_current_user_id),
 ):
     if payload.project_id is not None:
-        if _owned_project(db, payload.project_id, user_id) is None:
+        project = _owned_project(db, payload.project_id, user_id)
+        if project is None:
             return _project_not_found()
 
+        # Conditions the project's own attributes already settle, so the
+        # caller does not have to restate them. Anything the project leaves
+        # blank stays absent, and its requirements come back as manual review.
+        # An explicit flag in the request overrides the derived one.
+        payload = payload.model_copy(
+            update={"context": merge_context(derive_context(project), payload.context)}
+        )
     result = assess_application(payload)
     if result is None:
         return _unsupported(payload.application_type)

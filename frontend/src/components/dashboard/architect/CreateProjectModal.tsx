@@ -4,11 +4,91 @@ import { useEffect, useState } from "react";
 import { X, Loader2, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import type { ProjectApprovalAttributes } from "@/lib/projects";
+
 export type CreateProjectFormData = {
   name: string;
   description: string;
   location_gps: string;
+  /**
+   * Approval attributes. Empty string means "not stated", which is not the
+   * same as "no": the readiness engine reports requirements that depend on an
+   * unstated attribute as manual review rather than assuming they do not
+   * apply. So these stay optional and unset by default.
+   */
+  application_type: "" | NonNullable<ProjectApprovalAttributes["application_type"]>;
+  building_use: "" | NonNullable<ProjectApprovalAttributes["building_use"]>;
+  tenure_type: "" | NonNullable<ProjectApprovalAttributes["tenure_type"]>;
+  applicant_type: "" | NonNullable<ProjectApprovalAttributes["applicant_type"]>;
+  development_activity:
+    | ""
+    | NonNullable<ProjectApprovalAttributes["development_activity"]>;
+  has_ppc: "" | "yes" | "no";
 };
+
+/** Each option settles one or more official condition keys. */
+const APPROVAL_FIELDS = [
+  {
+    key: "application_type" as const,
+    label: "Application type",
+    hint: "Which approval this project is working towards",
+    options: [
+      ["building_permit", "Building Permit"],
+      ["coc", "Certificate of Conformity"],
+    ],
+  },
+  {
+    key: "building_use" as const,
+    label: "Building use",
+    hint: "Decides whether the fire, electricity, water, waste and sewerage clearances apply",
+    options: [
+      ["residential", "Residential"],
+      ["non_residential", "Non-residential"],
+      ["apartment", "Apartment"],
+    ],
+  },
+  {
+    key: "development_activity" as const,
+    label: "Development activity",
+    hint: "Decides most Certificate of Conformity requirements",
+    options: [
+      ["building_construction", "Building construction"],
+      ["land_subdivision", "Land subdivision"],
+    ],
+  },
+  {
+    key: "applicant_type" as const,
+    label: "Applicant",
+    hint: "An organisation also needs a business registration certificate",
+    options: [
+      ["individual", "Individual"],
+      ["organization", "Company or organisation"],
+    ],
+  },
+  {
+    key: "tenure_type" as const,
+    label: "Tenure",
+    hint: "A condominium needs Condominium Authority clearance",
+    options: [
+      ["freehold", "Freehold"],
+      ["condominium", "Condominium"],
+    ],
+  },
+  {
+    key: "has_ppc" as const,
+    label: "Preliminary Planning Clearance",
+    hint: "Whether a PPC has already been obtained",
+    options: [
+      ["yes", "Obtained"],
+      ["no", "Not obtained"],
+    ],
+  },
+] satisfies ReadonlyArray<{
+  key: keyof CreateProjectFormData;
+  label: string;
+  hint: string;
+  options: ReadonlyArray<readonly [string, string]>;
+}>;
 
 type CreateProjectModalProps = {
   open: boolean;
@@ -22,6 +102,12 @@ const initialForm: CreateProjectFormData = {
   name: "",
   description: "",
   location_gps: "",
+  application_type: "",
+  building_use: "",
+  tenure_type: "",
+  applicant_type: "",
+  development_activity: "",
+  has_ppc: "",
 };
 
 export function CreateProjectModal({
@@ -156,6 +242,48 @@ export function CreateProjectModal({
               className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-gold focus:ring-4 focus:ring-gold/10"
             />
           </div>
+
+          <fieldset className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+            <legend className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Approval details — optional
+            </legend>
+            <p className="text-[11px] leading-snug text-slate-500">
+              Each answer settles part of the official document checklist.
+              Anything left blank is treated as unknown and flagged for manual
+              review rather than assumed not to apply.
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {APPROVAL_FIELDS.map((field) => (
+                <div key={field.key}>
+                  <label
+                    htmlFor={`project-${field.key}`}
+                    className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500"
+                  >
+                    {field.label}
+                  </label>
+                  <select
+                    id={`project-${field.key}`}
+                    value={form[field.key] as string}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, [field.key]: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-all focus:border-gold focus:ring-4 focus:ring-gold/10"
+                  >
+                    <option value="">Not stated</option>
+                    {field.options.map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[10px] leading-snug text-slate-400">
+                    {field.hint}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </fieldset>
 
           <div className="flex gap-3 pt-2">
             <button

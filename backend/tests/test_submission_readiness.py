@@ -321,3 +321,117 @@ def test_assess_rejects_a_project_the_caller_does_not_own(client, make_user, aut
     )
     assert response.status_code == 404
     assert response.json()["errors"][0]["code"] == "PROJECT_NOT_FOUND"
+
+
+# --------------------------------------------------------------------------- #
+# Project attributes -> condition flags
+# --------------------------------------------------------------------------- #
+def _project(**attrs):
+    from app.models.project import Project
+
+    defaults = {
+        "name": "P",
+        "user_id": 1,
+        "application_type": None,
+        "building_use": None,
+        "tenure_type": None,
+        "applicant_type": None,
+        "development_activity": None,
+        "has_ppc": None,
+    }
+    return Project(**{**defaults, **attrs})
+
+
+def test_an_unset_attribute_yields_no_flag_at_all():
+    from app.services.submission_readiness.project_context import derive_context
+
+    # The distinction this whole component rests on: absent, not False.
+    assert derive_context(_project()) == {}
+
+
+def test_building_use_settles_the_clearance_group():
+    from app.services.submission_readiness.project_context import derive_context
+
+    assert derive_context(_project(building_use="apartment"))[
+        "non_residential_or_apartment"
+    ] is True
+    assert derive_context(_project(building_use="non_residential"))[
+        "non_residential_or_apartment"
+    ] is True
+    assert derive_context(_project(building_use="residential"))[
+        "non_residential_or_apartment"
+    ] is False
+
+
+def test_an_invalid_stored_value_is_treated_as_unknown():
+    from app.services.submission_readiness.project_context import derive_context
+
+    # A bad value must not become False, which would silently drop five
+    # clearance requirements off the checklist.
+    assert "non_residential_or_apartment" not in derive_context(
+        _project(building_use="warehouse-ish")
+    )
+
+
+def test_development_activity_settles_both_coc_groups():
+    from app.services.submission_readiness.project_context import derive_context
+
+    ctx = derive_context(_project(development_activity="land_subdivision"))
+    assert ctx["activity_is_land_subdivision"] is True
+    assert ctx["activity_is_building_construction"] is False
+
+
+def test_explicit_request_flags_override_project_attributes():
+    from app.services.submission_readiness.project_context import merge_context
+
+    merged = merge_context({"is_condominium": False}, {"is_condominium": True})
+    assert merged["is_condominium"] is True
+
+
+def test_a_populated_project_removes_manual_reviews(client, make_user, auth_headers):
+    from app.models.project import Project
+
+    make_user("owner2@example.com")
+    headers = auth_headers("owner2@example.com")
+
+    created = client.post(
+        "/api/v1/projects",
+        headers=headers,
+        json={
+            "name": "Matara residence",
+            "building_use": "residential",
+            "tenure_type": "freehold",
+            "applicant_type": "individual",
+            "has_ppc": False,
+        },
+    )
+    assert created.status_code == 201, created.text
+    project_id = created.json()["data"]["id"]
+
+    def manual_count(body: dict) -> int:
+        response = client.post(
+            "/api/v1/submission-readiness/assess", headers=headers, json=body
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["data"]["summary"]["manual_review_count"]
+
+    without_project = manual_count(
+        {"application_type": "building_permit", "documents": [], "context": {}}
+    )
+    with_project = manual_count(
+        {
+            "project_id": project_id,
+            "application_type": "building_permit",
+            "documents": [],
+            "context": {},
+        }
+    )
+
+    # Building permit has 14 conditional requirements. Four project attributes
+    # settle nine of them: building_use decides the five-clearance group,
+    # tenure_type decides the condominium clearance, applicant_type decides
+    # business registration and the declaration forms, has_ppc decides the PPC.
+    # The remaining five need the OCR and geospatial modules, or the local
+    # authority in the case of the two CMC-area rows.
+    assert without_project == 14
+    assert with_project == 5

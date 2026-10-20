@@ -70,6 +70,15 @@ def create_project(
         description=payload.description,
         location_gps=payload.location_gps,
         user_id=user_id,
+        # Approval attributes. Each one left unset stays NULL, which the
+        # readiness engine reads as "unknown" and reports as manual review
+        # rather than assuming the requirement does not apply.
+        application_type=payload.application_type,
+        building_use=payload.building_use,
+        tenure_type=payload.tenure_type,
+        applicant_type=payload.applicant_type,
+        development_activity=payload.development_activity,
+        has_ppc=payload.has_ppc,
     )
     db.add(project)
     db.commit()

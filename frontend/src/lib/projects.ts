@@ -2,7 +2,26 @@ import axios, { AxiosError } from "axios";
 import { API_V1, type ApiResponse } from "@/lib/api";
 import { handleUnauthorized } from "@/lib/session-guard";
 
-export type Project = {
+/**
+ * What the project is, in the terms the approval requirements are written in.
+ * Each settles one or more condition keys for the readiness engine.
+ *
+ * Every field is optional, and leaving one unset is meaningful: the engine
+ * reads it as unknown and reports the requirements that depend on it as manual
+ * review, rather than assuming they do not apply.
+ */
+export type ProjectApprovalAttributes = {
+  application_type?: "building_permit" | "coc" | null;
+  /** Gates the five-clearance group for non-residential buildings and apartments. */
+  building_use?: "residential" | "non_residential" | "apartment" | null;
+  tenure_type?: "freehold" | "condominium" | null;
+  applicant_type?: "individual" | "organization" | null;
+  /** Decides nine of the twelve Certificate of Conformity requirements. */
+  development_activity?: "building_construction" | "land_subdivision" | null;
+  has_ppc?: boolean | null;
+};
+
+export type Project = ProjectApprovalAttributes & {
   id: number;
   name: string;
   description: string | null;
@@ -11,17 +30,37 @@ export type Project = {
   created_at: string;
 };
 
-export type ProjectCreatePayload = {
+export type ProjectCreatePayload = ProjectApprovalAttributes & {
   name: string;
   description?: string | null;
   location_gps?: string | null;
 };
 
-export type ProjectUpdatePayload = {
+export type ProjectUpdatePayload = ProjectApprovalAttributes & {
   name?: string;
   description?: string | null;
   location_gps?: string | null;
 };
+
+/** Only the attributes the caller actually set — an omitted key stays unknown. */
+function approvalAttributes(
+  payload: ProjectApprovalAttributes
+): ProjectApprovalAttributes {
+  const keys = [
+    "application_type",
+    "building_use",
+    "tenure_type",
+    "applicant_type",
+    "development_activity",
+    "has_ppc",
+  ] as const;
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    const value = payload[key];
+    if (value !== undefined && value !== null) out[key] = value;
+  }
+  return out as ProjectApprovalAttributes;
+}
 
 function authHeaders(token: string) {
   return {
@@ -73,6 +112,7 @@ export async function createProject(
         name: payload.name,
         description: payload.description ?? null,
         location_gps: payload.location_gps ?? null,
+        ...approvalAttributes(payload),
       },
       { headers: authHeaders(token) }
     );

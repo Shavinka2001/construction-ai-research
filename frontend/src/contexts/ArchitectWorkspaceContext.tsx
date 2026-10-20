@@ -240,6 +240,16 @@ export function ArchitectWorkspaceProvider({
           name: data.name.trim(),
           description: data.description.trim() || null,
           location_gps: data.location_gps.trim() || null,
+          // An attribute left blank is sent as undefined rather than null, so
+          // it stays unknown. The readiness engine then reports the
+          // requirements that depend on it as manual review instead of
+          // assuming they do not apply.
+          application_type: data.application_type || undefined,
+          building_use: data.building_use || undefined,
+          tenure_type: data.tenure_type || undefined,
+          applicant_type: data.applicant_type || undefined,
+          development_activity: data.development_activity || undefined,
+          has_ppc: data.has_ppc === "" ? undefined : data.has_ppc === "yes",
         });
 
         setProjectsList((prev) => [

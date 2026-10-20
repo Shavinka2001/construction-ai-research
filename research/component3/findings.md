@@ -45,29 +45,41 @@ system can hold (`local_authority`).
 
 | | Building Permit (22 reqs) | Certificate of Conformity (12 reqs) |
 | --- | --- | --- |
-| Decidable today | 8 — **36%** | 2 — **17%** |
-| Project-record fields would add | 9 | 10 |
+| Decidable before this work | 8 — 36% | 2 — 17% |
+| **Decidable today** | **17 — 77%** | **12 — 100%** |
 | Document OCR would add | 2 | — |
 | Geospatial module would add | 1 | — |
 | **All modules integrated** | **91%** | **100%** |
 | **Never decidable by the system** | **2 (9%)** | 0 |
 
+The middle row is the result of acting on the first measurement. Six optional
+attributes were added to the project record — application type, building use,
+development activity, applicant type, tenure and whether a PPC exists — and a
+derivation turns them into condition flags. That moved building-permit coverage
+from 36% to 77% and closed the Certificate of Conformity checklist entirely.
+
 Three things follow.
 
-**Most of the gap is engineering, not regulation.** Building-permit coverage
-goes from 36% to 77% on project-record fields alone — building use, tenure,
-activity type, whether a PPC exists. That is a form and a migration, not
-research. The single highest-value field is building use, which gates the
-five-clearance group for non-residential buildings and apartments.
+**Most of the gap was engineering, not regulation.** Nine of the fourteen
+conditional building-permit requirements were settled by a form and a
+migration. The highest-value single field is building use, which alone gates
+the five-clearance group for non-residential buildings and apartments.
 
 **The metric is an integration roadmap.** It states what each unbuilt module
 buys, in requirements, which is a more useful thing to hand the rest of the team
-than a model accuracy figure.
+than a model accuracy figure. Three requirements remain for the OCR and
+geospatial modules.
 
 **9% of the building-permit checklist is not reachable by any amount of
 engineering.** Those two requirements need a local authority to say what the
 Matara condition is. That residue is the regulatory gap, and it is the number
 this component exists to put a figure on.
+
+**The flags are omitted, not defaulted.** An attribute nobody filled in
+produces no flag at all, so its requirements come back as manual review. Sending
+`false` instead would have raised the coverage figure while making the system
+confidently wrong, which is the failure this component is built to avoid; a test
+asserts the empty case.
 
 **Design consequence.** The rule engine treats an unresolvable condition as a
 third outcome — `manual_review` — carrying the official condition text, the
