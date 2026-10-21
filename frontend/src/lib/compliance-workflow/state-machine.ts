@@ -224,7 +224,10 @@ export function canAdvanceFromStep(
     case 2:
       return state.roadmap.length > 0;
     case 3:
-      return state.document.inferenceState === "complete";
+      // Step 3 used to gate on the v1 classifier having run. That scanner is
+      // gone, and readiness is read from the requirements dataset rather than
+      // from an upload, so there is nothing here to wait for.
+      return true;
     case 4:
       return true;
     default:
@@ -244,7 +247,8 @@ export function canNavigateToStep(
     case 3:
       return state.roadmap.length > 0;
     case 4:
-      return state.document.inferenceState === "complete";
+      // Reachable once a roadmap exists; see canAdvanceFromStep.
+      return state.roadmap.length > 0;
     default:
       return false;
   }

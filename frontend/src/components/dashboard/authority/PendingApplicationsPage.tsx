@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { AuthorityReviewQueue } from "@/components/dashboard/authority/AuthorityReviewQueue";
-import { AiAssessmentPanel } from "@/components/dashboard/authority/AiAssessmentPanel";
+import { SubmissionReadinessPanel } from "@/components/compliance-workflow/SubmissionReadinessPanel";
 import { StepDocumentVerification } from "@/components/compliance-workflow/StepDocumentVerification";
 import { StepGeospatialIdentification } from "@/components/compliance-workflow/StepGeospatialIdentification";
 
@@ -40,7 +40,7 @@ export function PendingApplicationsPage() {
           <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-luxury sm:p-6">
             <StepDocumentVerification compact hideAssessment />
           </div>
-          <AiAssessmentPanel useWorkflow />
+          <SubmissionReadinessPanel context={{ in_cmc_area: false }} />
         </div>
       </div>
     </div>

@@ -13,7 +13,7 @@
  * a user acts on them differently.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -77,8 +77,6 @@ const TONE_STYLES: Record<StateTone, { dot: string; pill: string }> = {
     pill: "bg-slate-50 text-slate-500 ring-slate-200",
   },
 };
-
-const ACCEPTED = ".pdf,.png,.jpg,.jpeg,.txt";
 
 function StateIcon({ state }: { state: RequirementState }) {
   const tone = REQUIREMENT_STATE_TONES[state];
@@ -160,11 +158,9 @@ function RequirementRow({
   busy: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
   const finding = findingFor(result, requirement.requirement_id);
   const tone = REQUIREMENT_STATE_TONES[requirement.state];
   const hasDetail = finding != null || requirement.condition != null;
-  const inputId = `attach-${requirement.requirement_id}`;
 
   return (
     <li className="border-b border-slate-100 last:border-b-0">
@@ -195,17 +191,9 @@ function RequirementRow({
           </p>
 
           {attachedName && (
-            <p className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
+            <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
               <Paperclip className="h-3 w-3 shrink-0" aria-hidden />
-              <span className="truncate">{attachedName}</span>
-              <button
-                type="button"
-                onClick={() => onDetach(requirement.requirement_id)}
-                aria-label={`Remove ${attachedName}`}
-                className="shrink-0 rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-              >
-                <X className="h-3 w-3" aria-hidden />
-              </button>
+              Marked as obtained — counted, but not verified
             </p>
           )}
 
@@ -227,28 +215,26 @@ function RequirementRow({
                 />
               </button>
             )}
-            <label
-              htmlFor={inputId}
+            {/* A declaration, not an upload. Nothing is stored or read, so
+                calling it "upload" would imply the document had been checked.
+                The engine treats it as unverified either way. */}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                attachedName
+                  ? onDetach(requirement.requirement_id)
+                  : onAttach(requirement.requirement_id, "declared")
+              }
               className={cn(
-                "cursor-pointer text-[11px] font-semibold text-slate-600 underline-offset-2 hover:text-blue-700 hover:underline",
-                busy && "pointer-events-none opacity-50"
+                "text-[11px] font-semibold underline-offset-2 hover:underline disabled:opacity-50",
+                attachedName
+                  ? "text-slate-500 hover:text-red-600"
+                  : "text-blue-700 hover:text-blue-900"
               )}
             >
-              {attachedName ? "Replace" : "Upload"}
-              <input
-                ref={inputRef}
-                id={inputId}
-                type="file"
-                accept={ACCEPTED}
-                className="sr-only"
-                disabled={busy}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) onAttach(requirement.requirement_id, file.name);
-                  e.target.value = "";
-                }}
-              />
-            </label>
+              {attachedName ? "Undo" : "I have this"}
+            </button>
           </div>
 
           {open && (
@@ -636,9 +622,10 @@ export function SubmissionReadinessPanel({
             </p>
           )}
           <p className="italic">
-            Attachments are assessed for completeness only — they are not stored
-            or authenticated yet, so each is reported as unverified. This
-            assessment is not a government approval.
+            Marking an item as obtained counts it towards completeness only. Nothing
+            is stored or authenticated, so every such item stays unverified until
+            the document-verification module is connected. This assessment is not
+            a government approval.
           </p>
         </div>
       )}

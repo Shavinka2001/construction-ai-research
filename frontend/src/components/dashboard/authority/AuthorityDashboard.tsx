@@ -8,7 +8,6 @@ import { getDisplayName } from "@/lib/auth";
 import { ROLE_DASHBOARD_LABELS } from "@/lib/roles";
 import { AuthorityWorkflowStatusCards } from "@/components/dashboard/authority/AuthorityWorkflowStatusCards";
 import { AuthorityReviewQueue } from "@/components/dashboard/authority/AuthorityReviewQueue";
-import { AiAssessmentPanel } from "@/components/dashboard/authority/AiAssessmentPanel";
 import { StepGeospatialIdentification } from "@/components/compliance-workflow/StepGeospatialIdentification";
 import { StepDocumentVerification } from "@/components/compliance-workflow/StepDocumentVerification";
 import { SubmissionReadinessPanel } from "@/components/compliance-workflow/SubmissionReadinessPanel";
@@ -83,11 +82,10 @@ export function AuthorityDashboard({ user }: AuthorityDashboardProps) {
             <StepDocumentVerification compact hideAssessment />
           </div>
 
-          <AiAssessmentPanel useWorkflow />
 
           {/* Rule-based readiness against the official requirements dataset.
-              Sits beside the v1 classifier rather than replacing it: swapping
-              it out needs a submission store the system does not have yet. */}
+              This replaced the v1 classifier panel, which called a model whose
+              predictions were at chance level — see app/ml/model_card.md. */}
           <SubmissionReadinessPanel context={MATARA_CONTEXT} />
         </div>
       </div>

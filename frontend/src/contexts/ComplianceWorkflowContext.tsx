@@ -6,7 +6,7 @@
  * Data flow:
  *   Step 1  confirmLocation(pin)  → zone + roadmap (state-machine)
  *   Step 2  reads zone / roadmap  → displays dynamic phases
- *   Step 3  runDocumentInference  → ML API → updates active phase status
+ *   Step 3  readiness panel       → rule engine + risk model
  *   Step 4  activeRoadmapIndex    → AuthorityLocator resolves contact + map
  *
  * Mount once at `AuthorityShell` so the authority dashboard and
@@ -42,7 +42,6 @@ import type {
   ZoneAnalysis,
 } from "@/lib/compliance-workflow/types";
 import { extractEntitiesFromText } from "@/lib/compliance-workflow-data";
-import { predictCompliance } from "@/lib/compliance-predict";
 import { extractDocumentText } from "@/lib/extract-document-text";
 
 // Re-export types for consumers
@@ -66,7 +65,6 @@ type ComplianceWorkflowContextValue = ComplianceWorkflowState & {
   setPin: (pin: GeoPin) => void;
   confirmLocation: (pin: GeoPin, options?: { advance?: boolean }) => void;
   setActiveRoadmapIndex: (index: number) => void;
-  runDocumentInference: (file: File) => Promise<void>;
   clearDocument: () => void;
   canAdvanceFromStep: (step: WorkflowStepIndex) => boolean;
   canNavigateToStep: (step: WorkflowStepIndex) => boolean;
@@ -112,24 +110,6 @@ export function ComplianceWorkflowProvider({ children }: { children: ReactNode }
     setState((prev) => ({ ...prev, activeRoadmapIndex: index }));
   }, []);
 
-  const runDocumentInference = useCallback(async (file: File) => {
-    setState((prev) => applyInferenceStarted(prev, file));
-
-    try {
-      const text = await extractDocumentText(file);
-      const entities = extractEntitiesFromText(text);
-      const prediction = await predictCompliance(text);
-
-      setState((prev) =>
-        applyInferenceComplete(prev, file, prediction, entities)
-      );
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Model inference failed";
-      setState((prev) => applyInferenceError(prev, message));
-    }
-  }, []);
-
   const clearDocument = useCallback(() => {
     setState((prev) => applyClearDocument(prev));
   }, []);
@@ -163,7 +143,6 @@ export function ComplianceWorkflowProvider({ children }: { children: ReactNode }
       setPin,
       confirmLocation,
       setActiveRoadmapIndex,
-      runDocumentInference,
       clearDocument,
       canAdvanceFromStep,
       canNavigateToStep,
@@ -178,7 +157,6 @@ export function ComplianceWorkflowProvider({ children }: { children: ReactNode }
       setPin,
       confirmLocation,
       setActiveRoadmapIndex,
-      runDocumentInference,
       clearDocument,
       canAdvanceFromStep,
       canNavigateToStep,
@@ -237,9 +215,8 @@ export function useWorkflowRoadmap() {
 
 /** Selector — Step 3 document / ML slice. */
 export function useWorkflowDocument() {
-  const { document, runDocumentInference, clearDocument, activeRoadmapStep } =
-    useComplianceWorkflow();
-  return { document, runDocumentInference, clearDocument, activeRoadmapStep };
+  const { document, clearDocument, activeRoadmapStep } = useComplianceWorkflow();
+  return { document, clearDocument, activeRoadmapStep };
 }
 
 /** Selector — Step 4 authority routing slice. */
