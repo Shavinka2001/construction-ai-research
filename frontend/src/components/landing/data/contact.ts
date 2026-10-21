@@ -4,21 +4,22 @@ import type { ContactChannel } from "@/components/landing/types";
  * ===========================================================================
  *  Contact details.
  *
- *  The group has no single shared mailbox, so general enquiries are addressed
- *  to all four researchers at once and the per-member addresses are listed
- *  separately on the Contact page from `data/team.ts`.
- *
- *  >>> No telephone number is published yet. Add one here when the group
- *      agrees which number to give out. <<<
+ *  The group has no shared mailbox, so general enquiries go to the group
+ *  leader and are passed on from there. The per-member addresses are listed
+ *  separately on the Contact page, read from `data/team.ts`.
  * ===========================================================================
  */
 
 export const GENERAL_CONTACTS: readonly ContactChannel[] = [
   {
-    label: "Project enquiries",
-    value: "All four researchers",
-    href:
-      "mailto:kavithashwinranaweera@gmail.com,345kavindushavinka@gmail.com,vinusha1212@gmail.com,shamindiemalsha@gmail.com",
+    label: "Group e-mail",
+    value: "345kavindushavinka@gmail.com",
+    href: "mailto:345kavindushavinka@gmail.com",
+  },
+  {
+    label: "Telephone",
+    value: "+94 71 976 9164",
+    href: "tel:+94719769164",
   },
   {
     label: "Supervisor",
@@ -32,14 +33,8 @@ export const GENERAL_CONTACTS: readonly ContactChannel[] = [
   },
 ] satisfies readonly ContactChannel[];
 
-/**
- * Where the general enquiry form sends its message.
- *
- * All four researchers, comma-separated — a `mailto:` target accepts more
- * than one recipient, so the whole group receives the enquiry.
- */
-export const ENQUIRY_ADDRESS =
-  "kavithashwinranaweera@gmail.com,345kavindushavinka@gmail.com,vinusha1212@gmail.com,shamindiemalsha@gmail.com";
+/** Where the general enquiry form sends its message. */
+export const ENQUIRY_ADDRESS = "345kavindushavinka@gmail.com";
 
 export const DEPARTMENT_ADDRESS = [
   "Department of Information Technology",
