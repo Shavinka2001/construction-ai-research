@@ -78,6 +78,23 @@ export type AcquisitionGuide = {
   note: string | null;
 };
 
+/** Whether the applicant can act alone, or has to wait on another body. */
+export type Control = "applicant" | "external_authority";
+
+export type RecourseAction = {
+  action: string;
+  requirement_id: string | null;
+  document_name: string | null;
+  control: Control;
+};
+
+export type RecourseResult = {
+  attainable: boolean;
+  target_band: string;
+  actions: RecourseAction[];
+  note: string;
+};
+
 export type ProcedureStep = {
   step_order: number;
   step: string;
@@ -92,6 +109,7 @@ export type RequirementOutcome = {
   state: RequirementState;
   condition: string | null;
   authority: string;
+  control: Control;
   acquisition: AcquisitionGuide | null;
 };
 
@@ -128,6 +146,7 @@ export type AssessmentResult = {
   ml_available: boolean;
   ml_unavailable_reason: string | null;
   recommended_actions: string[];
+  recourse: RecourseResult | null;
   application_procedure: ProcedureStep[];
   /** `{ authorities, publish_a_procedure }` — the shortfall is a gap in
    *  published regulatory information, not in this system. */
@@ -205,9 +224,17 @@ export function actionableRequirements(
     satisfied: 5,
     not_applicable: 6,
   };
+  // Things waiting on another authority come first among equals: they take
+  // weeks and are worth starting today, while your own paperwork can follow.
+  const control = (r: RequirementOutcome) =>
+    r.state === "satisfied" ? 1 : r.control === "external_authority" ? 0 : 1;
+
   return [...result.requirements]
     .filter((r) => r.state !== "not_applicable")
-    .sort((a, b) => rank[a.state] - rank[b.state]);
+    .sort(
+      (a, b) =>
+        rank[a.state] - rank[b.state] || control(a) - control(b)
+    );
 }
 
 /** The finding attached to a requirement, for the row's expanded detail. */

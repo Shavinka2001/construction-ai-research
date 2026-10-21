@@ -109,7 +109,48 @@ behind a form handed out at a counter. The protocol and the per-authority
 evidence are in `publication_survey.csv` so the sample can be extended or
 challenged.
 
-## 4. Synthetic labels: what the obvious policy would have reported
+## 4. Is a risky application actually recoverable?
+
+Reproduce: `python backend/research/component3/07_recourse_analysis.py`
+
+A risk band says where an applicant stands. It does not say whether standing
+there is recoverable, which is the thing they need to know. For every synthetic
+case the model places above `low`, we search for the smallest set of **feasible**
+actions that moves it to any lower band.
+
+Feasible is doing work here. Only actions an applicant can take are searched —
+supply a missing document, renew an expired one, correct a mismatch, get one
+verified, obtain the applicable clearance. Lowering the *number of requirements*
+is not an action, so it is never proposed; a counterfactual that says "need
+fewer requirements" is not recourse.
+
+| | |
+| --- | --- |
+| Cases above `low` | 1,559 |
+| Recoverable within 4 actions | 1,344 — **86%** |
+| **No short path** | **215 — 14%** |
+| Median actions needed | 1 |
+| Distribution (1/2/3/4 actions) | 693 / 457 / 159 / 35 |
+| Needing another authority | 249 |
+
+Two findings.
+
+**14% have no short path.** No combination of up to four feasible actions moves
+them down a band. Those applications are structurally incomplete rather than a
+few fixes away, and saying so is more useful than a list of actions that would
+not work.
+
+**One action is not one action.** Of the recoverable cases, 249 need something
+from another body — a clearance from the Ceylon Electricity Board or the water
+board — which takes as long as that body takes. Correcting a mismatch in your
+own drawing takes an afternoon. The system labels each action with who controls
+it and orders the checklist so the slow, externally-owned items surface first,
+because those are the ones worth starting today.
+
+This also gives the risk band a job beyond ranking. A band with no recourse
+attached is a verdict; a band with the two actions that clear it is advice.
+
+## 5. Synthetic labels: what the obvious policy would have reported
 
 Reproduce: `python backend/research/component3/04_labelling_ablation.py`
 

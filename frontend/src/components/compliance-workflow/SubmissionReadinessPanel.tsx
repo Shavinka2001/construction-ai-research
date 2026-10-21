@@ -39,6 +39,7 @@ import {
   type AssessmentResult,
   type RequirementOutcome,
   type RequirementState,
+  type RiskLevel,
   type StateTone,
   type SubmittedDocument,
 } from "@/lib/submission-readiness";
@@ -183,7 +184,15 @@ function RequirementRow({
               {REQUIREMENT_STATE_LABELS[requirement.state]}
             </span>
           </div>
-          <p className="mt-0.5 text-xs text-slate-400">{requirement.authority}</p>
+          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+            {requirement.authority}
+            {requirement.control === "external_authority" &&
+              requirement.state !== "satisfied" && (
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                  start early — another authority
+                </span>
+              )}
+          </p>
 
           {attachedName && (
             <p className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
@@ -369,6 +378,48 @@ function RiskBand({ result }: { result: AssessmentResult }) {
       <p className="mt-1 text-[11px] leading-snug text-slate-500">
         {result.ml_prediction.disclaimer}
       </p>
+
+      {/* The question that follows the band: what is the least I can do?
+          "No short path" is shown as plainly as a list of actions — it tells
+          the applicant to stop looking for a quick fix. */}
+      {result.recourse && (
+        <div className="mt-3 border-t border-white/60 pt-2.5">
+          {result.recourse.attainable ? (
+            <>
+              <p className="text-[11px] font-semibold text-slate-600">
+                {result.recourse.actions.length} action
+                {result.recourse.actions.length === 1 ? "" : "s"} would bring this
+                to {RISK_LABELS[result.recourse.target_band as RiskLevel] ??
+                  result.recourse.target_band}
+                :
+              </p>
+              <ul className="mt-1 space-y-1">
+                {result.recourse.actions.map((a, i) => (
+                  <li
+                    key={`${a.requirement_id ?? i}`}
+                    className="flex items-start gap-1.5 text-xs text-slate-700"
+                  >
+                    <span aria-hidden>→</span>
+                    <span className="leading-snug">
+                      {a.action}
+                      {a.control === "external_authority" && (
+                        <span className="ml-1.5 rounded bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                          another authority
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="text-xs leading-snug text-slate-600">
+              <span className="font-semibold">No short path.</span>{" "}
+              {result.recourse.note}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

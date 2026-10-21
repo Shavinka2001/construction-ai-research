@@ -33,6 +33,7 @@ from app.schemas.submission_readiness import (
     SubmittedDocument,
 )
 from app.services.submission_readiness import acquisition_guide, document_mapper
+from app.services.submission_readiness.recourse import control_for
 from app.services.submission_readiness.requirements_repo import (
     Requirement,
     for_application_type,
@@ -301,5 +302,9 @@ def _outcome(requirement: Requirement, state: str) -> RequirementOutcome:
         state=state,  # type: ignore[arg-type]
         condition=requirement.condition,
         authority=requirement.authority,
+        # Whether the applicant can act on this alone, or has to wait on
+        # another body. Ordering the checklist by this is what lets a user
+        # start the slow things first.
+        control=control_for(requirement.authority),
         acquisition=acquisition,
     )

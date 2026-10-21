@@ -29,6 +29,7 @@ from app.schemas.submission_readiness import (
 from app.services.submission_readiness import (
     acquisition_guide,
     jurisdiction_context,
+    recourse as recourse_service,
     risk_model,
     rule_engine,
 )
@@ -103,6 +104,20 @@ def assess_application(request: AssessmentRequest) -> Optional[AssessmentResult]
     prediction = risk_model.predict(request.application_type, rules.summary)
     ml_available = prediction is not None
 
+    # What would actually move the band down. Only meaningful when there is a
+    # band to move, so it is skipped when the model is unavailable.
+    recourse = None
+    if prediction is not None:
+        recourse = recourse_service.compute(
+            application_type=request.application_type,
+            summary=rules.summary,
+            outcomes=rules.outcomes,
+            current_band=prediction.risk_level,
+            predict_band=lambda row: risk_model.predict_row(
+                request.application_type, row
+            ),
+        )
+
     actions = _recommended_actions(rules.findings)
     if rules.unrecognised_uploads:
         labels = ", ".join(sorted(set(rules.unrecognised_uploads)))
@@ -123,6 +138,7 @@ def assess_application(request: AssessmentRequest) -> Optional[AssessmentResult]
         ml_available=ml_available,
         ml_unavailable_reason=None if ml_available else risk_model.unavailable_reason(),
         recommended_actions=actions,
+        recourse=recourse,
         application_procedure=[
             ProcedureStep(
                 step_order=s.step_order,

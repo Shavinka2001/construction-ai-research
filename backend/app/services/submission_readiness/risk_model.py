@@ -141,6 +141,31 @@ def predict(application_type: str, summary: RuleSummary) -> Optional[MlPredictio
     )
 
 
+def predict_row(application_type: str, row: dict) -> Optional[str]:
+    """
+    Band for one hypothetical feature row, used by the recourse search.
+
+    Separate from :func:`predict` because recourse asks "what if" about rows
+    that do not correspond to any real assessment, and wants only the label.
+    """
+    model, _ = _load()
+    if model is None:
+        return None
+    try:
+        import pandas as pd  # noqa: PLC0415 — optional dependency, imported on demand
+    except ImportError:
+        return None
+
+    frame = pd.DataFrame(
+        [{"application_type": application_type, **row}], columns=list(FEATURE_COLUMNS)
+    )
+    try:
+        return str(model.predict(frame)[0])
+    except Exception:  # noqa: BLE001 — the caller treats a failure as "no recourse"
+        logger.exception("recourse row prediction failed")
+        return None
+
+
 def unavailable_reason() -> Optional[str]:
     _, error = _load()
     return error

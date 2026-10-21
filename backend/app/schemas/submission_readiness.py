@@ -128,7 +128,35 @@ class RequirementOutcome(BaseModel):
     state: RequirementState
     condition: Optional[str] = None
     authority: str
+    control: Control = "applicant"
     acquisition: Optional[AcquisitionGuide] = None
+
+
+#: Who an outstanding item actually depends on. Correcting your own drawing
+#: and waiting on a clearance from another authority are not the same kind of
+#: task, and a flat checklist hides that.
+Control = Literal["applicant", "external_authority"]
+
+
+class RecourseAction(BaseModel):
+    action: str
+    requirement_id: Optional[str] = None
+    document_name: Optional[str] = None
+    control: Control
+
+
+class RecourseResult(BaseModel):
+    """
+    The smallest feasible set of actions that lowers the risk band.
+
+    ``attainable=False`` is a real answer, not a failure: it says the
+    application is structurally incomplete rather than a few fixes away.
+    """
+
+    attainable: bool
+    target_band: str
+    actions: list[RecourseAction] = Field(default_factory=list)
+    note: str
 
 
 class RuleSummary(BaseModel):
@@ -169,6 +197,10 @@ class AssessmentResult(BaseModel):
     ml_available: bool = True
     ml_unavailable_reason: Optional[str] = None
     recommended_actions: list[str] = Field(default_factory=list)
+    recourse: Optional[RecourseResult] = Field(
+        None,
+        description="Smallest feasible action set that lowers the risk band",
+    )
     application_procedure: list[ProcedureStep] = Field(
         default_factory=list,
         description="Sourced steps for lodging this application type",

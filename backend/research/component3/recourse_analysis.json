@@ -1,0 +1,17 @@
+{
+  "max_actions_searched": 4,
+  "cases_above_low": 1559,
+  "recoverable": 1344,
+  "recoverable_share": 0.862,
+  "no_short_path": 215,
+  "no_short_path_share": 0.138,
+  "median_actions": 1,
+  "actions_distribution": {
+    "1": 693,
+    "2": 457,
+    "3": 159,
+    "4": 35
+  },
+  "needing_another_authority": 249,
+  "reading": "A band on its own does not say whether the application is recoverable. Where no set of up to four feasible actions lowers it, the application is structurally incomplete rather than a few fixes away, and telling the applicant that is more useful than a list of actions that would not work."
+}
