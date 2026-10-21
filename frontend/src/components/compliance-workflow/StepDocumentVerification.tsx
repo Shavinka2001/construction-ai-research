@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
@@ -13,8 +13,6 @@ import {
 } from "lucide-react";
 import { useWorkflowDocument } from "@/contexts/ComplianceWorkflowContext";
 import { ComplianceStatusBadge } from "@/components/dashboard/authority/ComplianceStatusBadge";
-import { SubmissionReadinessPanel } from "@/components/compliance-workflow/SubmissionReadinessPanel";
-import type { SubmittedDocument } from "@/lib/submission-readiness";
 import { cn } from "@/lib/utils";
 
 const ACCEPTED = ".pdf,.png,.jpg,.jpeg,.txt,.md,.csv";
@@ -62,29 +60,6 @@ export function StepDocumentVerification({
   const hasPrediction =
     document.inferenceState === "complete" && document.prediction != null;
 
-  // What the readiness engine is told about this application. The workflow
-  // tracks one upload at a time, so it contributes a single entry and the
-  // engine reports the rest of the official checklist as still outstanding —
-  // which is what is actually true.
-  const submittedDocuments = useMemo<SubmittedDocument[]>(() => {
-    if (!hasActiveFile || !document.fileName) return [];
-    return [
-      {
-        type: document.fileName,
-        // The OCR module is not wired up yet. Until it is, an upload is
-        // accepted but unverified: extraction is not authentication.
-        status: "unverified",
-      },
-    ];
-  }, [hasActiveFile, document.fileName]);
-
-  // Only flags the workflow actually knows. Everything omitted stays unknown,
-  // so its requirement comes back as "manual review" rather than being
-  // silently assumed not to apply.
-  const readinessContext = useMemo<Record<string, boolean>>(
-    () => ({ in_cmc_area: false }),
-    []
-  );
 
   return (
     <div className="space-y-5">
@@ -311,12 +286,6 @@ export function StepDocumentVerification({
         )}
       </AnimatePresence>
 
-      {!hideAssessment && (
-        <SubmissionReadinessPanel
-          documents={submittedDocuments}
-          context={readinessContext}
-        />
-      )}
     </div>
   );
 }
