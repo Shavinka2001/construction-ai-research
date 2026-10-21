@@ -7,88 +7,109 @@ script in this directory.
 
 ## 1. The gap: published requirements do not resolve to a jurisdiction
 
-The Urban Development Authority publishes what a development permit needs, as
-prose, at national level. What is not published in any resolvable form is
-**whether a given requirement applies to a given site under a given local
-authority**.
+An applicant cannot find out what their application needs before submitting it.
+Not because the rules are secret, but because of where they stop.
 
-The clearest instance is in the dataset. `REQ-BP-010`, the Street Line /
-Building Line Certificate, carries the official condition:
+The Urban Development Authority publishes a document list for development
+permits, as prose, at national level. UDA administers approvals directly in
+declared urban development areas — the powers it had delegated to local
+authorities were partly taken back with effect from 1 February 2017, and
+applications go to a UDA Provincial or District Office. So for a site in a
+declared urban area, the UDA list **is** the applicable list, and the component
+scopes itself there.
 
-> "If the proposed building is situated in CMC area"
+Outside that arrangement the applicant is on their own, and that is where the
+gap sits. It is a question of the list's **completeness**, not of resolving its
+conditions. Section 2 shows every condition resolves given the right inputs;
+Section 3 measures whether an applicant can find the list at all.
 
-CMC is the Colombo Municipal Council. For a site in Matara the condition is
-clear prose and completely undecidable: it names a different local authority,
-and no published source states the Matara equivalent. The same applies to
-`REQ-BP-011`.
-
-This is not a shortcoming of the extraction. It is a property of how the
-requirements are published, and it is what stops an applicant knowing what their
-particular application needs before they submit it. The UDA One Stop Unit
-digitises the *submission*; it does not digitise the *applicability decision*.
-
-**Why this matters for the system.** Most compliance checkers would resolve an
-unknown condition to false and report the requirement as not applicable, or to
-true and report it as missing. Both are wrong, and both are confidently wrong.
-
----
-
-## 2. Measuring the gap: condition resolvability coverage
+## 2. Measuring resolvability: condition coverage
 
 Reproduce: `python backend/research/component3/05_condition_coverage.py`
 
-Each `condition_key` is attributed to the data source that could settle it:
-a field the system could capture at project creation (`project_record`), a fact
-the document-verification module could extract (`document_ocr`), a site
-classification the zoning module could supply (`geospatial`), or nothing the
-system can hold (`local_authority`).
+Each `condition_key` is attributed to the data source that could settle it: the
+site's jurisdiction, a field the system could capture at project creation, a
+fact the document-verification module could extract, or a site classification
+the zoning module could supply.
 
 | | Building Permit (22 reqs) | Certificate of Conformity (12 reqs) |
 | --- | --- | --- |
-| Decidable before this work | 8 — 36% | 2 — 17% |
-| **Decidable today** | **17 — 77%** | **12 — 100%** |
+| Before this work | 8 — 36% | 2 — 17% |
+| **Decidable today** | **19 — 86%** | **12 — 100%** |
 | Document OCR would add | 2 | — |
 | Geospatial module would add | 1 | — |
-| **All modules integrated** | **91%** | **100%** |
-| **Never decidable by the system** | **2 (9%)** | 0 |
+| **All modules integrated** | **100%** | **100%** |
 
-The middle row is the result of acting on the first measurement. Six optional
-attributes were added to the project record — application type, building use,
-development activity, applicant type, tenure and whether a PPC exists — and a
-derivation turns them into condition flags. That moved building-permit coverage
-from 36% to 77% and closed the Certificate of Conformity checklist entirely.
+Two steps got there. Six optional attributes were added to the project record —
+application type, building use, development activity, applicant type, tenure
+and whether a PPC exists — and a derivation turns them into condition flags;
+that moved building-permit coverage from 36% to 77%. Then the two requirements
+gated on "if situated in CMC area" were recognised as geographic and settled
+from the site's jurisdiction, which took it to 86%.
 
-Three things follow.
+**A correction worth recording.** Those two rows were first classified as never
+decidable, on the reasoning that no published source gives the Matara
+equivalent of the CMC condition. That conflated two questions. *Does this UDA
+condition apply to a Matara site?* has an answer — no, Matara is not the CMC
+area. *Does Matara add requirements of its own?* does not, and that is the real
+gap. Separating them moved the finding from Section 2 to Section 3, where it is
+measured properly.
 
-**Most of the gap was engineering, not regulation.** Nine of the fourteen
-conditional building-permit requirements were settled by a form and a
-migration. The highest-value single field is building use, which alone gates
-the five-clearance group for non-residential buildings and apartments.
-
-**The metric is an integration roadmap.** It states what each unbuilt module
-buys, in requirements, which is a more useful thing to hand the rest of the team
-than a model accuracy figure. Three requirements remain for the OCR and
-geospatial modules.
-
-**9% of the building-permit checklist is not reachable by any amount of
-engineering.** Those two requirements need a local authority to say what the
-Matara condition is. That residue is the regulatory gap, and it is the number
-this component exists to put a figure on.
-
-**The flags are omitted, not defaulted.** An attribute nobody filled in
-produces no flag at all, so its requirements come back as manual review. Sending
-`false` instead would have raised the coverage figure while making the system
-confidently wrong, which is the failure this component is built to avoid; a test
-asserts the empty case.
+**The coverage metric is an integration roadmap.** It states what each unbuilt
+module buys, in requirements, which is a more useful thing to hand the rest of
+the team than a model accuracy figure.
 
 **Design consequence.** The rule engine treats an unresolvable condition as a
-third outcome — `manual_review` — carrying the official condition text, the
-requirement id and the source link, rather than guessing. Abstention is a
-reportable result, not a failure.
+third outcome — `manual_review` — carrying the condition text, the requirement
+id and the source link, rather than guessing. Flags are omitted rather than
+defaulted to `false`: a default would raise the coverage figure while making the
+system confidently wrong. A test asserts the empty case.
 
----
+## 3. Measuring the real gap: who publishes a checklist at all
 
-## 3. Synthetic labels: what the obvious policy would have reported
+Reproduce: `python backend/research/component3/06_publication_survey.py`
+
+Sixteen local authorities across seven provinces, the sample fixed before
+searching. For each: does it publish, anywhere on the open web, a list of the
+documents a building permit application requires? A page naming the service,
+giving an office address or listing fees does not count.
+
+| | Sampled | Publish a checklist | Share |
+| --- | --- | --- | --- |
+| Municipal Councils | 12 | 1 | **8%** |
+| Urban Councils | 2 | 0 | 0% |
+| Pradeshiya Sabhas | 2 | 1 | 50% |
+| **All** | **16** | **2** | **12%** |
+
+The two that publish are Colombo Municipal Council, whose building-application
+page lists the legal documents required, and Akmeemana Pradeshiya Sabha, whose
+citizen-services PDF lists four certified copies of the building plan, two
+copies of the approved survey plan and two copies of the land deed. Both were
+opened and read, not inferred from a search snippet.
+
+Matara Municipal Council does not publish one. Neither do Kandy, Galle,
+Negombo, Jaffna, Kurunegala, Batticaloa, Gampaha or Anuradhapura.
+
+The Local Government Department's own portal is the sharpest illustration. Its
+per-authority service pages carry a fee schedule for the building permit
+service and then say: *"No online application or forms available at the moment.
+Please visit our office."* What it costs is published. What to bring is not.
+
+**What this means.** Where an authority does not publish its checklist, no
+automated pre-submission checker can be built for that jurisdiction — not by
+this project and not by anyone, because the input does not exist in public. For
+88% of the sample, the obstacle is the provision of regulatory information
+rather than any engineering problem.
+
+**Honest limits.** Sixteen authorities is a pilot, not a census; Sri Lanka has
+roughly 340 local authorities. A result of "no" records no evidence of
+publication found by open-web search, never proof of absence — a checklist may
+sit on a noticeboard, in a Sinhala or Tamil document a search does not reach, or
+behind a form handed out at a counter. The protocol and the per-authority
+evidence are in `publication_survey.csv` so the sample can be extended or
+challenged.
+
+## 4. Synthetic labels: what the obvious policy would have reported
 
 Reproduce: `python backend/research/component3/04_labelling_ablation.py`
 
@@ -128,17 +149,19 @@ Claimed:
 
 - The requirements dataset is traceable. Every row carries an official
   `source_url`, `source_section` and the date the source was read.
-- The rule engine's findings are deterministic and auditable against that
-  dataset.
-- The coverage figures above describe the published regulations as of
-  2026-10-20.
+- The rule engine's findings are deterministic and auditable against it.
+- The coverage figures describe the published UDA requirements as of
+  2026-10-20, for sites in declared urban development areas.
+- The publication figures describe 16 named authorities as searched on
+  2026-10-21, under the protocol in `06_publication_survey.py`.
 
 Not claimed:
 
-- That the requirements apply in Matara. `verified_date` records that the UDA
-  source was read on that date, not that a local authority confirmed
-  applicability. Sources S1 and S2 in `source_register.md` close that gap and
-  are still open.
+- That the UDA list is complete for a site under an authority operating
+  outside the UDA arrangement. That is the open question, and Section 3
+  measures how often an applicant could even find out.
+- That an authority recorded as not publishing has no checklist. It records no
+  evidence found by open-web search.
 - Any accuracy against real approval or rework outcomes. The labels are
   generated; the metrics measure how learnable the documented policy is.
 - That the system approves anything. `official_approval` is always false.

@@ -25,7 +25,11 @@ from app.schemas.submission_readiness import (
     RuleFinding,
     RuleSummary,
 )
-from app.services.submission_readiness import risk_model, rule_engine
+from app.services.submission_readiness import (
+    jurisdiction_context,
+    risk_model,
+    rule_engine,
+)
 from app.services.submission_readiness.requirements_repo import is_supported
 
 logger = logging.getLogger(__name__)
@@ -77,10 +81,19 @@ def assess_application(request: AssessmentRequest) -> Optional[AssessmentResult]
         )
         return None
 
+    # Geographic conditions follow from the jurisdiction, so they are settled
+    # here rather than being asked of the caller. An explicit flag in the
+    # request still wins, which is how a caller corrects a jurisdiction the
+    # system has mapped wrongly.
+    context = {
+        **jurisdiction_context.derive_context(request.jurisdiction),
+        **request.context,
+    }
+
     rules = rule_engine.evaluate(
         application_type=request.application_type,
         documents=request.documents,
-        context=request.context,
+        context=context,
     )
     if not rules.supported:
         return None

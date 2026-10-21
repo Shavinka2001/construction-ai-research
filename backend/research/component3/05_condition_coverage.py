@@ -25,9 +25,13 @@ Four sources, in increasing order of how hard they are to obtain:
 * `document_ocr`    — needs the document-verification module to read a
                       submitted document and extract a fact from it.
 * `geospatial`      — needs the zoning / hazard module to classify the site.
-* `local_authority` — not derivable from any data the system can hold. The
-                      condition as published does not resolve for this
-                      jurisdiction. This is the gap.
+* `jurisdiction`    — follows from where the site is, which the request
+                      already carries.
+
+Note on what this does *not* measure. Every condition in the UDA list resolves
+given the right data; the open question is whether that list is *complete* for
+a given site, which is a separate matter and not something a coverage figure
+can settle. See findings.md.
 
 The output is a coverage figure per application type and, more usefully, what
 each unintegrated module would add if it were wired up. That turns the metric
@@ -91,12 +95,12 @@ CONDITION_SOURCES: dict[str, tuple[str, str]] = {
         "Development activity type.",
     ),
     "in_cmc_area": (
-        "local_authority",
-        "The published condition names the Colombo Municipal Council area. For a Matara site it does not resolve, and no published source gives the local equivalent. Only the local authority can settle it.",
+        "jurisdiction",
+        "The condition names the Colombo Municipal Council area, so it follows from where the site is. A Matara site resolves it to false.",
     ),
 }
 
-SOURCE_ORDER = ["always", "project_record", "document_ocr", "geospatial", "local_authority"]
+SOURCE_ORDER = ["always", "jurisdiction", "project_record", "document_ocr", "geospatial"]
 
 #: Condition keys the running system supplies today, from project attributes
 #: captured at project creation. Kept in sync with DERIVABLE_KEYS in
@@ -113,6 +117,9 @@ CURRENTLY_SUPPLIED: set[str] = {
     "declarations_applicable",
     "activity_is_building_construction",
     "activity_is_land_subdivision",
+    # Settled from the request's jurisdiction — see
+    # app/services/submission_readiness/jurisdiction_context.py
+    "in_cmc_area",
 }
 
 
@@ -177,17 +184,18 @@ def main() -> None:
             "coverage_today": round(decidable_now / total, 3),
             "coverage_if_all_modules_integrated": round(running / total, 3),
             "gain_per_module": gains,
-            "never_decidable_by_the_system": counts["local_authority"],
+            "settled_by_jurisdiction": counts["jurisdiction"],
         }
 
     report["_reading"] = (
-        "Coverage today counts only requirements the system can settle without "
-        "asking a person. The remainder are not errors: the rule engine reports "
-        "them as manual review with the condition text and the official source, "
-        "which is the designed behaviour. The gap between today and full "
-        "integration is an engineering backlog. What is left after that is a "
-        "regulatory gap, not an engineering one: the published condition does "
-        "not resolve for this jurisdiction at all."
+        "Coverage counts requirements the system can settle without asking a "
+        "person. The remainder are not errors: the rule engine reports them as "
+        "manual review carrying the condition text and the official source. "
+        "The distance from today to full integration is an engineering "
+        "backlog, and it is the only thing this figure measures. Whether the "
+        "UDA list is complete for a site under an authority operating outside "
+        "the UDA arrangement is a separate question, and no coverage figure "
+        "answers it."
     )
     report["_currently_supplied_keys"] = sorted(CURRENTLY_SUPPLIED)
 
@@ -214,7 +222,7 @@ def main() -> None:
         else:
             print("  nothing left for the unbuilt modules to add")
         print(
-            f"  never decidable by the system  {data['never_decidable_by_the_system']:>3}"
+            f"  settled by jurisdiction        {data['settled_by_jurisdiction']:>3}"
         )
 
     print(f"\nwrote {HERE / 'condition_coverage.json'}")

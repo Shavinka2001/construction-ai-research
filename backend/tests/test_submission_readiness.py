@@ -427,11 +427,13 @@ def test_a_populated_project_removes_manual_reviews(client, make_user, auth_head
         }
     )
 
-    # Building permit has 14 conditional requirements. Four project attributes
-    # settle nine of them: building_use decides the five-clearance group,
-    # tenure_type decides the condominium clearance, applicant_type decides
-    # business registration and the declaration forms, has_ppc decides the PPC.
-    # The remaining five need the OCR and geospatial modules, or the local
-    # authority in the case of the two CMC-area rows.
-    assert without_project == 14
-    assert with_project == 5
+    # Building permit has 14 conditional requirements. Two are settled by the
+    # jurisdiction alone — the CMC-area rows, which a Matara site resolves to
+    # false — leaving 12 before any project attributes are known.
+    #
+    # Four project attributes then settle nine more: building_use decides the
+    # five-clearance group, tenure_type the condominium clearance,
+    # applicant_type business registration and the declaration forms, has_ppc
+    # the PPC. The remaining three wait on the OCR and geospatial modules.
+    assert without_project == 12
+    assert with_project == 3

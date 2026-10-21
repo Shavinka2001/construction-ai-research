@@ -1,0 +1,34 @@
+{
+  "protocol": "Sample fixed before searching. 'published' means a page or document listing the required documents was found on the open web; a service name, address or fee schedule does not count. 'no' records no evidence of publication, not proof of absence.",
+  "sample_size": 16,
+  "published_count": 2,
+  "published_share": 0.125,
+  "by_type": {
+    "MC": {
+      "sampled": 12,
+      "published": 1,
+      "share": 0.083
+    },
+    "PS": {
+      "sampled": 2,
+      "published": 1,
+      "share": 0.5
+    },
+    "UC": {
+      "sampled": 2,
+      "published": 0,
+      "share": 0.0
+    }
+  },
+  "published_authorities": [
+    {
+      "authority": "Colombo Municipal Council",
+      "url": "https://www.colombo.mc.gov.lk/building-application.php"
+    },
+    {
+      "authority": "Akmeemana Pradeshiya Sabha",
+      "url": "https://www.akmeemanaps.lk/purawasi/Akmeemana%20Pradeshiya%20saba.pdf"
+    }
+  ],
+  "reading": "Where an authority does not publish its checklist, an applicant cannot determine what their application needs before submitting it, and no automated pre-submission checker can be built for that jurisdiction by anyone. That is a gap in the provision of regulatory information, not in any one system."
+}
