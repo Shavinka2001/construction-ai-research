@@ -256,6 +256,43 @@ function RequirementRow({
                   {requirement.condition}
                 </p>
               )}
+
+              {/* Where to get it, or the fact that nobody publishes how. The
+                  second case is shown plainly rather than left blank: an
+                  applicant who knows the procedure is unpublished knows to
+                  ring the authority, which is more use than silence. */}
+              {requirement.acquisition && (
+                <div className="border-t border-slate-200 pt-2">
+                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    How to get it
+                  </p>
+                  {requirement.acquisition.publication_status === "published" ? (
+                    <>
+                      <p>{requirement.acquisition.how_to_obtain}</p>
+                      {requirement.acquisition.obtain_url && (
+                        <a
+                          href={requirement.acquisition.obtain_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-flex items-center gap-1 font-medium text-blue-700 hover:underline"
+                        >
+                          Apply here
+                          <ExternalLink className="h-3 w-3" aria-hidden />
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-amber-700">
+                      <span className="font-semibold">Not published.</span>{" "}
+                      {requirement.acquisition.authority} does not publish how to
+                      obtain this — contact them directly.
+                      {requirement.acquisition.note
+                        ? ` ${requirement.acquisition.note}`
+                        : ""}
+                    </p>
+                  )}
+                </div>
+              )}
               <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-[11px] text-slate-400">
                 <span className="font-mono">{requirement.requirement_id}</span>
                 {finding?.source_section && (
@@ -504,12 +541,55 @@ export function SubmissionReadinessPanel({
         </div>
       )}
 
+      {result && result.application_procedure.length > 0 && (
+        <details className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+          <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
+            How to lodge this application
+          </summary>
+          <ol className="mt-3 space-y-1.5">
+            {result.application_procedure.map((s) => (
+              <li key={s.step_order} className="flex gap-2.5 text-xs text-slate-600">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
+                  {s.step_order}
+                </span>
+                <span className="leading-snug">{s.step}</span>
+              </li>
+            ))}
+          </ol>
+          {result.application_procedure[0]?.source_url && (
+            <a
+              href={result.application_procedure[0].source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 hover:underline"
+            >
+              Official source
+              <ExternalLink className="h-3 w-3" aria-hidden />
+            </a>
+          )}
+        </details>
+      )}
+
       {result && (
-        <p className="border-t border-slate-100 pt-3 text-[11px] italic text-slate-400">
-          Attachments are assessed for completeness only — they are not stored
-          or authenticated yet, so each is reported as unverified. This
-          assessment is not a government approval.
-        </p>
+        <div className="space-y-2 border-t border-slate-100 pt-3 text-[11px] text-slate-400">
+          {/* Stated on screen rather than buried in the report: the applicant
+              is told why some of this checklist has no instructions attached. */}
+          {result.acquisition_coverage.authorities > 0 && (
+            <p className="not-italic">
+              <span className="font-semibold text-slate-500">
+                {result.acquisition_coverage.publish_a_procedure} of{" "}
+                {result.acquisition_coverage.authorities} issuing authorities
+              </span>{" "}
+              publish how to obtain their document. Where none is published this
+              checklist names the authority to contact instead of guessing.
+            </p>
+          )}
+          <p className="italic">
+            Attachments are assessed for completeness only — they are not stored
+            or authenticated yet, so each is reported as unverified. This
+            assessment is not a government approval.
+          </p>
+        </div>
       )}
     </section>
   );

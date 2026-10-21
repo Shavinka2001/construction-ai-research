@@ -26,12 +26,13 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from app.schemas.submission_readiness import (
+    AcquisitionGuide,
     RequirementOutcome,
     RuleFinding,
     RuleSummary,
     SubmittedDocument,
 )
-from app.services.submission_readiness import document_mapper
+from app.services.submission_readiness import acquisition_guide, document_mapper
 from app.services.submission_readiness.requirements_repo import (
     Requirement,
     for_application_type,
@@ -278,6 +279,21 @@ def _state_for(document: SubmittedDocument) -> str:
 
 
 def _outcome(requirement: Requirement, state: str) -> RequirementOutcome:
+    # Attach how to obtain it, or the fact that nobody publishes how.
+    guide = acquisition_guide.for_authority(requirement.authority)
+    acquisition = (
+        AcquisitionGuide(
+            authority=guide.authority,
+            publication_status=guide.publication_status,
+            how_to_obtain=guide.how_to_obtain,
+            obtain_url=guide.obtain_url,
+            source_url=guide.source_url,
+            source_section=guide.source_section,
+            note=guide.note,
+        )
+        if guide is not None
+        else None
+    )
     return RequirementOutcome(
         requirement_id=requirement.requirement_id,
         document_name=requirement.document_name,
@@ -285,4 +301,5 @@ def _outcome(requirement: Requirement, state: str) -> RequirementOutcome:
         state=state,  # type: ignore[arg-type]
         condition=requirement.condition,
         authority=requirement.authority,
+        acquisition=acquisition,
     )

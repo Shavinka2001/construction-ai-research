@@ -22,10 +22,12 @@ from app.schemas.submission_readiness import (
     AssessmentRequest,
     AssessmentResult,
     AssessmentStatus,
+    ProcedureStep,
     RuleFinding,
     RuleSummary,
 )
 from app.services.submission_readiness import (
+    acquisition_guide,
     jurisdiction_context,
     risk_model,
     rule_engine,
@@ -121,5 +123,15 @@ def assess_application(request: AssessmentRequest) -> Optional[AssessmentResult]
         ml_available=ml_available,
         ml_unavailable_reason=None if ml_available else risk_model.unavailable_reason(),
         recommended_actions=actions,
+        application_procedure=[
+            ProcedureStep(
+                step_order=s.step_order,
+                step=s.step,
+                source_url=s.source_url,
+                source_section=s.source_section,
+            )
+            for s in acquisition_guide.procedure_for(request.application_type)
+        ],
+        acquisition_coverage=acquisition_guide.publication_summary(),
         generated_at=datetime.now(timezone.utc).isoformat(),
     )

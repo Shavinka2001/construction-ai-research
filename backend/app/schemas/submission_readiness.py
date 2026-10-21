@@ -92,6 +92,33 @@ class RuleFinding(BaseModel):
     source_section: Optional[str] = None
 
 
+class AcquisitionGuide(BaseModel):
+    """
+    How to obtain this document, where that is published.
+
+    ``publication_status`` is the point of this model. For most issuing
+    authorities no procedure is published, and the UI shows that rather than a
+    plausible-sounding invention — the blank is information.
+    """
+
+    authority: str
+    publication_status: Literal["published", "not_published"]
+    how_to_obtain: Optional[str] = None
+    obtain_url: Optional[str] = None
+    source_url: Optional[str] = None
+    source_section: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ProcedureStep(BaseModel):
+    """One sourced step for lodging the application itself."""
+
+    step_order: int
+    step: str
+    source_url: Optional[str] = None
+    source_section: Optional[str] = None
+
+
 class RequirementOutcome(BaseModel):
     """Every applicable requirement, satisfied or not, for the UI checklist."""
 
@@ -101,6 +128,7 @@ class RequirementOutcome(BaseModel):
     state: RequirementState
     condition: Optional[str] = None
     authority: str
+    acquisition: Optional[AcquisitionGuide] = None
 
 
 class RuleSummary(BaseModel):
@@ -141,6 +169,18 @@ class AssessmentResult(BaseModel):
     ml_available: bool = True
     ml_unavailable_reason: Optional[str] = None
     recommended_actions: list[str] = Field(default_factory=list)
+    application_procedure: list[ProcedureStep] = Field(
+        default_factory=list,
+        description="Sourced steps for lodging this application type",
+    )
+    acquisition_coverage: dict[str, int] = Field(
+        default_factory=dict,
+        description=(
+            "How many issuing authorities publish a procedure at all. The "
+            "shortfall is a gap in published regulatory information, not in "
+            "this system."
+        ),
+    )
     official_approval: Literal[False] = False
     generated_at: str
 

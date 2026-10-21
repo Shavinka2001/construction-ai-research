@@ -60,6 +60,31 @@ export type RuleFinding = {
   source_section: string | null;
 };
 
+/**
+ * How to obtain the document, where that is published at all.
+ *
+ * `publication_status` is the point. For most issuing authorities no
+ * procedure is published, and the UI shows that rather than a
+ * plausible-sounding invention — the blank is information, and it is the
+ * component's research finding one level down.
+ */
+export type AcquisitionGuide = {
+  authority: string;
+  publication_status: "published" | "not_published";
+  how_to_obtain: string | null;
+  obtain_url: string | null;
+  source_url: string | null;
+  source_section: string | null;
+  note: string | null;
+};
+
+export type ProcedureStep = {
+  step_order: number;
+  step: string;
+  source_url: string | null;
+  source_section: string | null;
+};
+
 export type RequirementOutcome = {
   requirement_id: string;
   document_name: string;
@@ -67,6 +92,7 @@ export type RequirementOutcome = {
   state: RequirementState;
   condition: string | null;
   authority: string;
+  acquisition: AcquisitionGuide | null;
 };
 
 export type RuleSummary = {
@@ -102,6 +128,10 @@ export type AssessmentResult = {
   ml_available: boolean;
   ml_unavailable_reason: string | null;
   recommended_actions: string[];
+  application_procedure: ProcedureStep[];
+  /** `{ authorities, publish_a_procedure }` — the shortfall is a gap in
+   *  published regulatory information, not in this system. */
+  acquisition_coverage: Record<string, number>;
   official_approval: false;
   generated_at: string;
 };
