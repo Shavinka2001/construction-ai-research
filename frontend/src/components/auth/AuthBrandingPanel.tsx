@@ -35,14 +35,14 @@ export function AuthBrandingPanel() {
         <div className="mb-2 flex items-center gap-2">
           <span className="h-px w-8 bg-gold" />
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-gold">
-            Construction AI
+            ConstructAI
           </span>
         </div>
         <h2 className="max-w-md text-3xl font-bold leading-tight tracking-tight text-white xl:text-4xl">
           Precision Pre-Construction Engineering
         </h2>
         <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
-          Construction AI: Intelligent feasibility analysis, regulatory
+          ConstructAI: Intelligent feasibility analysis, regulatory
           compliance, and cost intelligence — engineered for modern teams.
         </p>
       </div>
@@ -67,7 +67,7 @@ export function AuthMobileBrand() {
   return (
     <div className="mb-8 text-center lg:hidden">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">
-        Construction AI
+        ConstructAI
       </p>
       <h2 className="mt-2 text-xl font-bold text-slate-900">
         Precision Pre-Construction Engineering

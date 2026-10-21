@@ -46,7 +46,7 @@ export const SITE_TABS: readonly SiteTab[] = [
   },
 ] satisfies readonly SiteTab[];
 
-export const PROJECT_TITLE = "Construction AI";
+export const PROJECT_TITLE = "ConstructAI";
 
 export const PROJECT_SUBTITLE =
   "Intelligent AI-Driven Pre-Construction Feasibility Analyzer";

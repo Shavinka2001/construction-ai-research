@@ -13,7 +13,7 @@ import { DOMAIN_SECTIONS, METHODOLOGY } from "@/components/landing/data/domain";
 export const metadata: Metadata = {
   title: "Domain",
   description:
-    "Literature survey, research gap, research problem, objectives, methodology and the technologies used in the Construction AI research project.",
+    "Literature survey, research gap, research problem, objectives, methodology and the technologies used in the ConstructAI research project.",
 };
 
 /** In-page contents, so a long read stays navigable. */

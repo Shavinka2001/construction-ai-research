@@ -39,11 +39,11 @@ export function EnquiryForm() {
     "",
     message || "—",
     "",
-    "— Sent from the Construction AI project website",
+    "— Sent from the ConstructAI project website",
   ].join("\n");
 
   const mailto = `mailto:${ENQUIRY_ADDRESS}?subject=${encodeURIComponent(
-    `[Construction AI] ${subject}`
+    `[ConstructAI] ${subject}`
   )}&body=${encodeURIComponent(body)}`;
 
   const fieldClass =
@@ -146,7 +146,7 @@ export function EnquiryForm() {
           Preview the message
         </summary>
         <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words bg-slate-50 p-4 font-mono text-micro leading-relaxed text-slate-600">
-          {`To: ${ENQUIRY_ADDRESS}\nSubject: [Construction AI] ${subject}\n\n${body}`}
+          {`To: ${ENQUIRY_ADDRESS}\nSubject: [ConstructAI] ${subject}\n\n${body}`}
         </pre>
       </details>
     </form>

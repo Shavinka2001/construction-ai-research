@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Download } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ import type { ProjectDocument } from "@/components/landing/types";
 export const metadata: Metadata = {
   title: "Documents",
   description:
-    "Documents produced for the Construction AI research project — charter, proposal, checklists and final submissions.",
+    "Documents produced for the ConstructAI research project — charter, proposal, checklists, final submissions, papers and the research poster.",
 };
 
 function formatDate(iso: string | null): string {
@@ -51,7 +51,7 @@ export default function DocumentsPage() {
       <PageHeader
         eyebrow="Documents"
         title="Everything written down."
-        lede="Documents already submitted carry a link. Those still in progress are listed as pending rather than hidden, so the record stays complete."
+        lede="Documents already produced can be read in the browser or downloaded as PDF. Those still in progress are listed as pending rather than hidden, so the record stays complete."
       />
 
       <Section id="documents" className="py-section lg:py-section-lg">
@@ -75,8 +75,11 @@ export default function DocumentsPage() {
                     {group.documents.map((doc) => {
                       const isPending = doc.href === null;
 
-                      const content = (
-                        <>
+                      return (
+                        <li
+                          key={doc.id}
+                          className="flex min-h-touch flex-col gap-3 border-b border-slate-200 py-4 sm:flex-row sm:items-center sm:gap-4"
+                        >
                           <span className="min-w-0 flex-1">
                             <span
                               className={cn(
@@ -99,29 +102,34 @@ export default function DocumentsPage() {
                               Pending
                             </span>
                           ) : (
-                            <span className="flex shrink-0 items-center gap-1.5 lp-label text-gold-ink">
-                              View
-                              <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
-                            </span>
-                          )}
-                        </>
-                      );
+                            <span className="flex shrink-0 items-center gap-5">
+                              {/* Opens the PDF in a new tab for reading. */}
+                              <a
+                                href={doc.href ?? "#"}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="lp-focus group inline-flex min-h-touch items-center gap-1.5 lp-label text-gold-ink ring-offset-white"
+                              >
+                                View
+                                <ArrowUpRight
+                                  aria-hidden
+                                  className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                                />
+                              </a>
 
-                      return (
-                        <li key={doc.id}>
-                          {isPending ? (
-                            <div className="flex min-h-touch items-center gap-4 border-b border-slate-200 py-4">
-                              {content}
-                            </div>
-                          ) : (
-                            <a
-                              href={doc.href ?? "#"}
-                              target="_blank"
-                              rel="noreferrer noopener"
-                              className="lp-focus group flex min-h-touch items-center gap-4 border-b border-slate-200 py-4 transition-colors hover:bg-slate-50 ring-offset-white"
-                            >
-                              {content}
-                            </a>
+                              {/* Saves the file rather than displaying it. */}
+                              <a
+                                href={doc.href ?? "#"}
+                                download
+                                className="lp-focus group inline-flex min-h-touch items-center gap-1.5 lp-label text-slate-500 transition-colors hover:text-ink ring-offset-white"
+                              >
+                                Download
+                                <Download
+                                  aria-hidden
+                                  className="h-3.5 w-3.5 transition-transform group-hover:translate-y-0.5"
+                                />
+                              </a>
+                            </span>
                           )}
                         </li>
                       );

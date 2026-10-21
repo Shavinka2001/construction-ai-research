@@ -28,7 +28,7 @@ function SidebarLogo({ onNavigate }: { onNavigate?: () => void }) {
       href="/dashboard"
       onClick={onNavigate}
       className="flex items-center"
-      aria-label="Construction AI — Dashboard home"
+      aria-label="ConstructAI — Dashboard home"
     >
       <span className="text-lg font-bold tracking-tight text-white">
         Construction

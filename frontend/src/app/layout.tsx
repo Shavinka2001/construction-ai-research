@@ -43,8 +43,8 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Construction AI — Pre-Construction Feasibility Portal",
-    template: "%s | Construction AI",
+    default: "ConstructAI — Pre-Construction Feasibility Portal",
+    template: "%s | ConstructAI",
   },
   description:
     "Intelligent pre-construction feasibility and cost analyzer for modern construction teams.",

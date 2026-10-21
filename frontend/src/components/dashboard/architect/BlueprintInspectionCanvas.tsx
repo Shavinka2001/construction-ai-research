@@ -283,7 +283,7 @@ export const BlueprintInspectionCanvas = forwardRef<
     ctx.fillStyle = "#D4AF37";
     ctx.font = "bold 10px Inter, system-ui, sans-serif";
     ctx.fillText(
-      `${count} elements · ${model} · Construction AI Resolved Blueprint`,
+      `${count} elements · ${model} · ConstructAI Resolved Blueprint`,
       20,
       height - 22
     );

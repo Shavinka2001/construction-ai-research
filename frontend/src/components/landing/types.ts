@@ -125,6 +125,8 @@ export type Supervisor = {
 };
 
 export type Institution = {
+  /** Departmental group identifier, e.g. "R26-IT-154". */
+  groupId: string;
   university: string;
   faculty: string;
   department: string;
@@ -151,8 +153,6 @@ export type Milestone = {
   name: string;
   /** ISO date (YYYY-MM-DD), or null while unscheduled. */
   date: string | null;
-  /** Weight toward the module grade, as a percentage. */
-  marks: number | null;
   /** What the assessment covers. */
   description: string;
   /** What is handed in or presented. */

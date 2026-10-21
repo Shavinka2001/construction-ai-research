@@ -103,29 +103,36 @@ is the realistic free option; Railway or Fly.io otherwise. You will also need:
 ## On the course web requirement
 
 The project web guidelines state **"Technology allowed: WordPress, HTML, CSS"**
-with a **20 MB** limit on the course web server. This site is a Next.js
-application hosted on Vercel, with the course web carrying a link to it.
+with a **20 MB** limit on the course web server. **This has been settled: the
+site is a Next.js application deployed on Vercel, and the course web carries a
+link to it.** No static export is required.
 
-**Confirm that arrangement with your supervisor before you submit.** If it has
-to be uploaded to the course web as files instead:
+Live at <https://research-static-site.vercel.app>.
 
-1. Add to `frontend/next.config.js`:
+The 20 MB figure is therefore not a hard constraint, but `frontend/public/`
+still holds the project PDFs that the Documents tab serves, so it is worth
+keeping an eye on. Current size:
 
-   ```js
-   const nextConfig = {
-     reactStrictMode: true,
-     output: "export",
-     images: { unoptimized: true },
-   };
-   ```
+```bash
+du -sh frontend/public        # ~8.6 MB, of which documents/ is ~8.5 MB
+```
 
-2. Remove the `/api/predict-compliance` route handler — static export cannot
-   serve it.
-3. Drop the WebGL hero (`HeroScene`) to stay inside 20 MB.
-4. `npm run build` then upload the contents of `frontend/out/`.
+## Project documents
 
-The seven public tabs survive a static export. `/login` and `/dashboard` do
-not, since they depend on the backend either way.
+The Documents and Presentations tabs serve files from
+`frontend/public/documents/`. They are committed to the repository, so a
+Vercel deploy picks them up with no extra configuration.
+
+To add one:
+
+1. Drop the PDF into `frontend/public/documents/`, named in kebab-case.
+2. Point the matching entry in
+   `frontend/src/components/landing/data/documents.ts` at it, e.g.
+   `href: "/documents/slides-proposal.pdf"`.
+
+An entry whose `href` is `null` renders as **Pending** rather than as a dead
+link, which is what the guidelines ask for. Every published document gets both
+a *View* link (opens in a tab) and a *Download* link (saves the file).
 
 ---
 

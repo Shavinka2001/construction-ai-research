@@ -133,7 +133,7 @@ export function LandingFooter() {
 
         <div className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-6 text-micro sm:flex-row sm:items-center sm:justify-between">
           <p>
-            &copy; {year} Construction AI Research Group. All rights reserved.
+            &copy; {year} ConstructAI Research Group. All rights reserved.
           </p>
           <p className="text-slate-400">
             {INSTITUTION.department} · {INSTITUTION.academicYear}

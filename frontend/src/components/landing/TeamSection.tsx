@@ -176,6 +176,7 @@ export function TeamSection() {
 
               <dl className="mt-5 divide-y divide-white/5 border-y border-white/5">
                 {[
+                  ["Group ID", INSTITUTION.groupId],
                   ["University", INSTITUTION.university],
                   ["Faculty", INSTITUTION.faculty],
                   ["Department", INSTITUTION.department],

@@ -80,7 +80,7 @@ export function ArchitectDashboard({ user }: ArchitectDashboardProps) {
               Welcome back, {displayName}
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500 sm:text-base">
-              Construction AI enterprise hub — manage your project portfolio,
+              ConstructAI enterprise hub — manage your project portfolio,
               then jump into Blueprint Parser or Clash Detection from the
               sidebar.
             </p>

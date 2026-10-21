@@ -6,7 +6,7 @@ import { TeamSection } from "@/components/landing/TeamSection";
 export const metadata: Metadata = {
   title: "About us",
   description:
-    "The research group behind Construction AI, the component each member owns, and the academic supervision of the project.",
+    "The research group behind ConstructAI, the component each member owns, and the academic supervision of the project.",
 };
 
 export default function AboutPage() {

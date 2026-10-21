@@ -12,7 +12,7 @@ import { SUPERVISORS, TEAM } from "@/components/landing/data/team";
 export const metadata: Metadata = {
   title: "Contact us",
   description:
-    "General contact details for the Construction AI research group, and a message template for enquiries.",
+    "General contact details for the ConstructAI research group, and a message template for enquiries.",
 };
 
 export default function ContactPage() {

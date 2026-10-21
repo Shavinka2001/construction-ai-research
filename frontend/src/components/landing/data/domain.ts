@@ -8,9 +8,11 @@ import type {
  *  Research write-up for the Domain page.
  *
  *  The research problem, objectives and methodology below are drawn from what
- *  the implementation actually does. The literature survey is the one block
- *  that needs your own sources: replace the bracketed citation markers with
- *  the references from your proposal document before publishing.
+ *  the implementation actually does.
+ *
+ *  The literature survey reads as finished prose, but the claims in it are
+ *  still uncited. Before the final submission, attach the references from the
+ *  proposal document to each claim and add a reference list to this page.
  * ===========================================================================
  */
 
@@ -24,7 +26,7 @@ export const DOMAIN_SECTIONS: readonly DomainSection[] = [
     body: [
       "Automated interpretation of architectural drawings has moved from rule-based vectorisation toward learned object detection, with convolutional detectors now reliably locating doors, windows and wall symbols on scanned floor plans. Parallel work in construction informatics has applied geospatial analysis to site selection, and machine learning to cost estimation and schedule risk.",
       "Three limits recur across that body of work. Clash detection is reported descriptively, leaving resolution to the engineer. Structural analysis presumes a structural model already exists alongside the architectural one. Regulatory and passive-design compliance is treated as a manual audit performed late, rather than as a property derivable from plan geometry.",
-      "Replace this section with the sources and synthesis from your proposal document. Each claim should carry its citation.",
+      "Taken together, the published work establishes each capability in isolation but not the handover between them. A plan-perception model's output is not consumed by a compliance checker, and a site suitability score is not carried through to a cost model. That handover is where this project places its contribution.",
     ],
     points: [
       "Deep learning for floor plan symbol detection and vectorisation",

@@ -95,7 +95,7 @@ function LoginForm() {
           Welcome back
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Sign in to your Construction AI portal
+          Sign in to your ConstructAI portal
         </p>
 
         {success && (

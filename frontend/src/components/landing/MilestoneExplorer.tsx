@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { CalendarDays, CircleCheck, CircleDot, Percent } from "lucide-react";
+import { CalendarDays, CircleCheck, CircleDot } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -20,10 +20,6 @@ function formatDate(iso: string | null): string {
   });
 }
 
-function formatMarks(marks: number | null): string {
-  return marks === null ? "To be confirmed" : `${marks}%`;
-}
-
 const STATUS_LABELS: Record<Milestone["status"], string> = {
   completed: "Completed",
   scheduled: "Scheduled",
@@ -36,8 +32,8 @@ const STATUS_LABELS: Record<Milestone["status"], string> = {
  * The project web guidelines ask for a drop-down so the reader can choose an
  * assessment, so the select is the primary control. The full schedule is also
  * rendered as a table underneath: the drop-down is good for reading one item,
- * a table is better for comparing dates and weights, and it keeps the whole
- * schedule available without any interaction.
+ * a table is better for comparing dates, and it keeps the whole schedule
+ * available without any interaction.
  */
 export function MilestoneExplorer() {
   const selectId = useId();
@@ -45,11 +41,6 @@ export function MilestoneExplorer() {
 
   const selected =
     MILESTONES.find((milestone) => milestone.id === selectedId) ?? MILESTONES[0];
-
-  const totalMarks = MILESTONES.reduce(
-    (sum, milestone) => sum + (milestone.marks ?? 0),
-    0
-  );
 
   return (
     <div>
@@ -83,7 +74,6 @@ export function MilestoneExplorer() {
 
         <p className="font-mono text-micro text-slate-500">
           {MILESTONES.length} assessments
-          {totalMarks > 0 ? ` · ${totalMarks}% allocated` : ""}
         </p>
       </div>
 
@@ -116,7 +106,7 @@ export function MilestoneExplorer() {
             </span>
           </div>
 
-          <dl className="mt-6 grid gap-5 border-y border-slate-200 py-5 sm:grid-cols-2">
+          <dl className="mt-6 border-y border-slate-200 py-5">
             <div className="flex items-start gap-3">
               <CalendarDays
                 aria-hidden
@@ -128,21 +118,6 @@ export function MilestoneExplorer() {
                 </dt>
                 <dd className="mt-1 text-body font-semibold text-ink">
                   {formatDate(selected.date)}
-                </dd>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <Percent
-                aria-hidden
-                className="mt-0.5 h-4 w-4 shrink-0 text-slate-500"
-              />
-              <div>
-                <dt className="lp-label text-slate-500">
-                  Marks allocated
-                </dt>
-                <dd className="mt-1 text-body font-semibold text-ink">
-                  {formatMarks(selected.marks)}
                 </dd>
               </div>
             </div>
@@ -183,12 +158,12 @@ export function MilestoneExplorer() {
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[32rem] border-collapse text-left">
             <caption className="sr-only">
-              Every assessment in the project, with its date, the marks
-              allocated and its current status.
+              Every assessment in the project, with its date and its current
+              status.
             </caption>
             <thead>
               <tr className="border-y border-slate-200">
-                {["Assessment", "Date", "Marks", "Status"].map((heading) => (
+                {["Assessment", "Date", "Status"].map((heading) => (
                   <th
                     key={heading}
                     scope="col"
@@ -219,9 +194,6 @@ export function MilestoneExplorer() {
                   </th>
                   <td className="py-3.5 pr-6 align-top font-mono text-caption text-slate-600">
                     {formatDate(milestone.date)}
-                  </td>
-                  <td className="py-3.5 pr-6 align-top font-mono text-caption tabular-nums text-slate-600">
-                    {formatMarks(milestone.marks)}
                   </td>
                   <td
                     className={cn(

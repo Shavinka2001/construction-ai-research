@@ -19,7 +19,7 @@ import {
 } from "@/components/landing/data/team";
 import { PROJECT_SUBTITLE } from "@/components/landing/data/site";
 
-const PAGE_TITLE = `Construction AI — ${PROJECT_SUBTITLE}`;
+const PAGE_TITLE = `ConstructAI — ${PROJECT_SUBTITLE}`;
 
 const PAGE_DESCRIPTION =
   "An undergraduate research platform for pre-construction intelligence: geospatial buildability scoring, architectural validation with closed-loop clash resolution, generative structural layout, automated regulatory compliance, and lifecycle costing.";
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     type: "website",
     title: PAGE_TITLE,
     description: PAGE_DESCRIPTION,
-    siteName: "Construction AI",
+    siteName: "ConstructAI",
   },
   twitter: {
     card: "summary_large_image",
@@ -53,7 +53,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
-  name: "Construction AI",
+  name: "ConstructAI",
   description: PAGE_DESCRIPTION,
   codeRepository: REPOSITORY_URL,
   programmingLanguage: ["TypeScript", "Python"],

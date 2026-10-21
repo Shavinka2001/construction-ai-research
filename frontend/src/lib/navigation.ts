@@ -46,6 +46,6 @@ export const navItems: NavItem[] = [
 ];
 
 export const brand = {
-  name: "Construction AI",
+  name: "ConstructAI",
   tagline: "Intelligent Pre-Construction",
 };

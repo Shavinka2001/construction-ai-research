@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
-import { ArrowUpRight, Presentation as PresentationIcon } from "lucide-react";
+import {
+  ArrowUpRight,
+  Download,
+  Presentation as PresentationIcon,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -11,7 +15,7 @@ import { PRESENTATIONS } from "@/components/landing/data/documents";
 export const metadata: Metadata = {
   title: "Presentations",
   description:
-    "Slide decks from each presentation given during the Construction AI research project.",
+    "Slide decks from each presentation given during the ConstructAI research project.",
 };
 
 function formatDate(iso: string | null): string {
@@ -73,18 +77,32 @@ export default function SlidesPage() {
                           Not yet presented
                         </span>
                       ) : (
-                        <a
-                          href={deck.href ?? "#"}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="lp-focus group inline-flex min-h-touch items-center gap-2 border-b border-ink/20 text-body-sm font-semibold text-ink transition-colors hover:border-gold ring-offset-white"
-                        >
-                          Open slides
-                          <ArrowUpRight
-                            aria-hidden
-                            className="h-4 w-4 text-gold-ink transition-transform group-hover:translate-x-0.5"
-                          />
-                        </a>
+                        <span className="inline-flex flex-col items-start gap-2 sm:items-end">
+                          <a
+                            href={deck.href ?? "#"}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="lp-focus group inline-flex min-h-touch items-center gap-2 border-b border-ink/20 text-body-sm font-semibold text-ink transition-colors hover:border-gold ring-offset-white"
+                          >
+                            Open slides
+                            <ArrowUpRight
+                              aria-hidden
+                              className="h-4 w-4 text-gold-ink transition-transform group-hover:translate-x-0.5"
+                            />
+                          </a>
+
+                          <a
+                            href={deck.href ?? "#"}
+                            download
+                            className="lp-focus group inline-flex min-h-touch items-center gap-1.5 lp-label text-slate-500 transition-colors hover:text-ink ring-offset-white"
+                          >
+                            Download
+                            <Download
+                              aria-hidden
+                              className="h-3.5 w-3.5 transition-transform group-hover:translate-y-0.5"
+                            />
+                          </a>
+                        </span>
                       )}
                     </div>
                   </article>

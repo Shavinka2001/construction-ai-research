@@ -7,7 +7,7 @@ import { MilestoneExplorer } from "@/components/landing/MilestoneExplorer";
 export const metadata: Metadata = {
   title: "Milestones",
   description:
-    "Every assessment in the Construction AI research project, with its date and the marks allocated.",
+    "Every assessment in the ConstructAI research project, what it covers and when it falls.",
 };
 
 export default function MilestonesPage() {
@@ -15,8 +15,8 @@ export default function MilestonesPage() {
     <>
       <PageHeader
         eyebrow="Milestones"
-        title="Assessments and marks."
-        lede="Each assessment in the project, what it covers, when it falls and how much it carries toward the module grade."
+        title="Assessments and deliverables."
+        lede="Each assessment in the project, what it covers, what is handed in and where it currently stands. Marks are allocated by the module outline and are not published here."
       />
 
       <Section id="milestones" className="py-section lg:py-section-lg">
