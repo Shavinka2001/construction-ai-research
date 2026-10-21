@@ -30,7 +30,7 @@ from app.models.project_attributes import (
 logger = logging.getLogger(__name__)
 
 #: Condition keys this function can settle, given a fully populated project.
-#: Kept in sync with research/component3/05_condition_coverage.py.
+#: Kept in sync with backend/research/component3/05_condition_coverage.py.
 DERIVABLE_KEYS: frozenset[str] = frozenset(
     {
         "non_residential_or_apartment",

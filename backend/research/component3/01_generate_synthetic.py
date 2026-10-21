@@ -30,8 +30,8 @@ import numpy as np
 
 SEED = 20261020
 ROOT = Path(__file__).resolve().parents[2]
-OUT_CSV = ROOT / "backend" / "data" / "approval_scenarios_synthetic.csv"
-OUT_META = ROOT / "backend" / "data" / "approval_scenarios_synthetic.meta.json"
+OUT_CSV = ROOT / "data" / "approval_scenarios_synthetic.csv"
+OUT_META = ROOT / "data" / "approval_scenarios_synthetic.meta.json"
 
 VARIANTS_PER_TEMPLATE = 18
 
@@ -275,8 +275,8 @@ def main() -> None:
     meta = {
         "synthetic": True,
         "seed": SEED,
-        "generator": "research/component3/01_generate_synthetic.py",
-        "labelling_policy": "research/component3/labelling_policy.md",
+        "generator": "backend/research/component3/01_generate_synthetic.py",
+        "labelling_policy": "backend/research/component3/labelling_policy.md",
         "rows": len(rows),
         "templates": len(templates),
         "variants_per_template": VARIANTS_PER_TEMPLATE,

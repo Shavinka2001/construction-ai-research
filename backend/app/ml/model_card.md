@@ -10,7 +10,7 @@ construction approval application before it is submitted to the authority.
 | Selected by | highest grouped-CV macro F1 on the training folds |
 | Trained | 2026-10-20 · seed 20261020 · scikit-learn 1.9.0 |
 | Training data | `backend/data/approval_scenarios_synthetic.csv` (**synthetic**) |
-| Reproduce | `python research/component3/02_train_evaluate.py` |
+| Reproduce | `python backend/research/component3/02_train_evaluate.py` |
 
 ## What it is not
 
@@ -118,7 +118,7 @@ not apply", which is the ordering a user sees:
   that the requirement applies in Matara, which is still open: `REQ-BP-010` and
   `REQ-BP-011` carry a condition written for the CMC area and need a Matara
   equivalent, and whether the local authority adds requirements on top of the
-  UDA list is unestablished. See `research/component3/source_register.md`.
+  UDA list is unestablished. See `backend/research/component3/source_register.md`.
 
 ## History
 

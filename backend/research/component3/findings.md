@@ -35,7 +35,7 @@ true and report it as missing. Both are wrong, and both are confidently wrong.
 
 ## 2. Measuring the gap: condition resolvability coverage
 
-Reproduce: `python research/component3/05_condition_coverage.py`
+Reproduce: `python backend/research/component3/05_condition_coverage.py`
 
 Each `condition_key` is attributed to the data source that could settle it:
 a field the system could capture at project creation (`project_record`), a fact
@@ -90,7 +90,7 @@ reportable result, not a failure.
 
 ## 3. Synthetic labels: what the obvious policy would have reported
 
-Reproduce: `python research/component3/04_labelling_ablation.py`
+Reproduce: `python backend/research/component3/04_labelling_ablation.py`
 
 No historical approved/rejected/rework outcomes are published for Sri Lankan
 building approvals, so training cases are generated. The risk is that a

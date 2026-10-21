@@ -33,8 +33,8 @@ The output is a coverage figure per application type and, more usefully, what
 each unintegrated module would add if it were wired up. That turns the metric
 into an integration roadmap instead of a grade.
 
-Run: python research/component3/05_condition_coverage.py
-Writes: research/component3/condition_coverage.json
+Run: python backend/research/component3/05_condition_coverage.py
+Writes: backend/research/component3/condition_coverage.json
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-REQUIREMENTS = ROOT / "backend" / "data" / "uda_requirements.csv"
+REQUIREMENTS = ROOT / "data" / "uda_requirements.csv"
 
 #: Which data source could settle each condition, and why.
 CONDITION_SOURCES: dict[str, tuple[str, str]] = {

@@ -5,7 +5,7 @@ The dataset's whole value is that every requirement traces to something a panel
 member can open. This script enforces that mechanically, so an untraceable row
 cannot quietly reach the rule engine.
 
-Run: python research/component3/03_validate_requirements.py
+Run: python backend/research/component3/03_validate_requirements.py
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CSV_PATH = ROOT / "backend" / "data" / "uda_requirements.csv"
+CSV_PATH = ROOT / "data" / "uda_requirements.csv"
 
 COLUMNS = [
     "requirement_id",

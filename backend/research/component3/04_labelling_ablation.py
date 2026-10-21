@@ -20,8 +20,8 @@ The naive dataset is the control. If a classifier scores near-perfectly on it
 did not already encode, and the headline accuracy measures the generator, not
 the problem.
 
-Run: python research/component3/04_labelling_ablation.py
-Writes: research/component3/ablation.json
+Run: python backend/research/component3/04_labelling_ablation.py
+Writes: backend/research/component3/ablation.json
 """
 
 from __future__ import annotations

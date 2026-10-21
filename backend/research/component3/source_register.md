@@ -92,6 +92,6 @@ the report should say which conditions could not be resolved automatically.
 
 ## Definition of done
 
-`python research/component3/03_validate_requirements.py` passes with no errors,
+`python backend/research/component3/03_validate_requirements.py` passes with no errors,
 which requires every row to carry a non-empty `source_url` or `source_section`,
 a `verified_date` within the last 12 months, and a valid `requirement_type`.

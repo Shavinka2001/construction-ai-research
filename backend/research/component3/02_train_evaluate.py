@@ -28,8 +28,8 @@ classifier whose fitted vectorizer was lost, which made its predictions
 meaningless; a pipeline makes that failure impossible.
 
 Outputs:
-    research/component3/metrics.json
-    research/component3/confusion_matrices.txt
+    backend/research/component3/metrics.json
+    backend/research/component3/confusion_matrices.txt
     backend/app/ml/submission_risk_v1.joblib
     backend/app/ml/feature_schema.json
 """
@@ -59,8 +59,8 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 SEED = 20261020
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / "backend" / "data" / "approval_scenarios_synthetic.csv"
-ML_DIR = ROOT / "backend" / "app" / "ml"
+DATA = ROOT / "data" / "approval_scenarios_synthetic.csv"
+ML_DIR = ROOT / "app" / "ml"
 HERE = Path(__file__).resolve().parent
 
 LABELS = ["low", "medium", "high"]
